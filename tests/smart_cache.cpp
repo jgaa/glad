@@ -263,7 +263,7 @@ TEST(Cache, TestWithSimultaneousRequests) {
 /* todo:
  *
  * v Test fail
- * - test a thousand keys
+ * v test a thousand keys
  * - test a thousand keys and then adding a thousand requests for a new key before it is ready
  */
 

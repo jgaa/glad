@@ -14,6 +14,15 @@
 #include <boost/asio.hpp>
 
 
+/* Todo
+ *
+ * - Add optimization to not create a queue when there is only one request pending
+ * - Add sharding for keys, based on hash (optional) for faster access on machines with many cores
+ * - Performance-testing
+ * - Add expiration
+ * - Handle invalidated keys, also for pending requests
+ */
+
 namespace jgaa::abb {
 
 /*! Generic cache with asio composed completion
