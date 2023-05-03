@@ -32,10 +32,35 @@ struct Config {
     size_t ySize = 10000;
     size_t failedKeys = 1000;
     size_t numThreads = std::thread::hardware_concurrency() * 2;
+    size_t numShards = 7;
     std::string reportPath;
 };
 
 Config config;
+
+class Timer {
+public:
+    Timer()
+        : start_{std::chrono::steady_clock::now()} {}
+
+    // Return elapsed time in nanoseconds
+    auto elapsed() const {
+        const auto ended = std::chrono::steady_clock::now();
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(ended - start_).count();
+    }
+
+    double elapsedSeconds() const {
+        return elapsed() / 1000000000.0;
+    }
+
+    const decltype (std::chrono::steady_clock::now()) start_;
+};
+
+inline void SetThreadName(const char *name) {
+#ifdef HAVE_PRCTL
+    prctl(PR_SET_NAME, reinterpret_cast<unsigned long>(name), 0, 0, 0);
+#endif
+}
 
 } // ns
 
@@ -60,7 +85,7 @@ void perftests() {
         }
 
         cb({}, get_value(key));
-    }, ctx);
+    }, ctx, config.numShards);
 
     // Prevent the context from running out of work
     auto work = boost::asio::make_work_guard(ctx);
@@ -74,6 +99,7 @@ void perftests() {
         });
     }
 
+    Timer runTimer;
     // Populate the cache
     clog << "Populating cache" << endl;
     {
@@ -133,6 +159,7 @@ void perftests() {
         t.join();
     }
 
+    clog << "Spent " << runTimer.elapsedSeconds() << " seconds doing test stuff..." << endl;
 }
 
 int main(int argc, char **argv) {
@@ -149,7 +176,10 @@ int main(int argc, char **argv) {
         ("help,h", "Print help and exit")
         ("threads",
          po::value<uint64_t>(&config.numThreads)->default_value(config.numThreads),
-         "Number of threads to use.")
+         "Number of shards to use.")
+        ("shards",
+         po::value<uint64_t>(&config.numShards)->default_value(config.numShards),
+         "Number of shardsto use.")
         ("x-size",
              po::value<size_t>(&config.xSize)->default_value(config.xSize),
              "Number of coroutines to run simultaneously")
@@ -176,8 +206,9 @@ int main(int argc, char **argv) {
     const auto numObjects = config.xSize * config.ySize;
 
     cout << "Starting up (using jgaa::abb " << ABB_VERSION_STR << ", boost " << BOOST_LIB_VERSION << ")." << endl
-         << "I will crate " << numObjects << " and then read "
-         << numObjects << " random keys and "
+         << "Using " << config.numThreads << " threads and " << config.numShards << " shards." << endl
+         << "I will crate " << numObjects << " objects and then read "
+         << numObjects << " existing objects using random keys and "
          << config.failedKeys << " nonexisting keys. " << endl;
 
     perftests();

@@ -20,10 +20,11 @@
 /* Todo
  *
  * v Add optimization to not create a queue when there is only one request pending
- * v Add sharding for keys, based on hash (optional) for faster access on machines with many cores
+ * v Add sharing for keys, based on hash (optional) for faster access on machines with many cores
  * v Performance-testing
  * - Add expiration
  * v Handle invalidated keys, also for pending requests
+ * - add an example
  */
 
 namespace jgaa::abb {
@@ -31,7 +32,7 @@ namespace jgaa::abb {
 /*! Generic cache with asio composed completion
  *
  * The cache is a trivial key/value store. If an item is not found,
- * a fetch method (supplied by you) are called to asyncrouneously get the
+ * a fetch method (supplied by you) are called to asynchronously get the
  * value. The request is paused, and the thread freed to do other work.
  *
  * If more requests comes in for a key that is in the process of being looked up,
@@ -39,8 +40,8 @@ namespace jgaa::abb {
  * the value is available, any and all pending requests are resumed.
  *
  *
- * The templatye arguments are:
- *  - valueT The type of athe value. Normally a shared_ptr for complex
+ * The template arguments are:
+ *  - valueT The type of the value. Normally a shared_ptr for complex
  *           objects and a value for trivial objects (that are fast to copy).
  *           The type must be copyable and should be movable
  *
@@ -49,7 +50,7 @@ namespace jgaa::abb {
  *  - executorT The asio executor to use for the cache itself.
  *           Normally a boost::asio::io_context used by your application.
  *
- *  - hashT  Hash function to use for the sharding based on keys.
+ *  - hashT  Hash function to use for the sharing based on keys.
  */
 
 #ifndef JGAA_ABB_MAP_TYPE
@@ -61,8 +62,8 @@ class Cache {
 
     struct SelfBase {
         virtual ~SelfBase() = default;
-        virtual void complete(std::any res = nullptr) = 0;
-        virtual void fail(boost::system::error_code ec) = 0;
+        virtual void complete(const std::any& res) = 0;
+        virtual void fail(const boost::system::error_code& ec) = 0;
     };
 
     // Storage for completion-handlers.
@@ -70,21 +71,16 @@ class Cache {
     struct Self : public SelfBase {
         Self(SelfT&& self) : self_{std::move(self)} {}
 
-        void complete(std::any res) override {
-            std::call_once(once_, [&] {
-                self_.complete({}, std::any_cast<VarT>(res));
-            });
+        void complete(const std::any& res) override {
+            self_.complete({}, std::any_cast<VarT>(res));
         }
 
-        void fail(boost::system::error_code ec) override {
-            std::call_once(once_, [&] {
-                self_.complete(ec, {});
-            });
+        void fail(const boost::system::error_code& ec) override {
+            self_.complete(ec, {});
         }
 
     private:
         SelfT self_;
-        std::once_flag once_;
     };
 
     template <typename selfT>
@@ -155,7 +151,7 @@ class Cache {
     using value_t = std::variant<valueT, Pending>;
     using cache_t = JGAA_ABB_MAP_TYPE<keyT, value_t>;
 
-    // Use "sharding" based on a hash from the key
+    // Use "sharing" based on a hash from the key
     // This allows up to 'numShards' number of lookups or callbacks to be processed in parallel,
     // which gives a significant performance boost on machines with may cores.
     class Shards {
@@ -208,8 +204,12 @@ public:
      *  \param fetch Functor to fetch values to the cache.
      *  \param executor Executor to use by the cache. Normally the
      *               boost::asio::io_context used by your application.
+     *  \param numShards Number of shards to use. You will have
+     *               to experiment to find the best value for your application
+     *               (least CPU time or least duration, whatever makes most sense
+     *               in your use-case).
      */
-    Cache(fetch_t && fetch, executorT& executor, size_t numShards=16)
+    Cache(fetch_t && fetch, executorT& executor, size_t numShards=7)
         : executor_{executor}
         , shards_{numShards, executor}
         , fetch_{std::move(fetch)}
@@ -217,7 +217,7 @@ public:
     {
     }
 
-    /*! Asynchrouneosly get a value from the cache.
+    /*! Asynchronously get a value from the cache.
      *
      *  If the value is not currently in the cache,
      *  it will be attempted fetched before the completion
@@ -239,10 +239,10 @@ public:
     }
 
 
-    /*! Asynchrouneosly checks if a value exists in the cache
+    /*! Asynchronously checks if a value exists in the cache
      *
      *  \param key Key to get.
-     *  \param needsValue If true, the methid will only return true if the key holds a value.
+     *  \param needsValue If true, the method will only return true if the key holds a value.
      *      If the key is being looked up for don't exist, the result will be false.
      *  \param token Your continuation handler.
      */
@@ -301,7 +301,7 @@ public:
      *  if a lookup is in progress while the key is invalidated, the
      *  result for the current operation is likely to be wrong.
      *  A new operation will therefor happen as soon as the current
-     *  operaion finish (either wilh a value or an error).
+     *  operation finish (either with a value or an error).
      *
      *  This means that you can invalidate a key, without interrupting
      *  requests waiting for the value.
@@ -391,7 +391,6 @@ private:
         return shards_.shard(key);
     }
 
-    //cache_t cache_;
     executorT& executor_;
     Shards shards_;
     fetch_t fetch_;
