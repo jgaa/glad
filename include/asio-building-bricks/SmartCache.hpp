@@ -20,8 +20,8 @@
 /* Todo
  *
  * v Add optimization to not create a queue when there is only one request pending
- * - Add sharding for keys, based on hash (optional) for faster access on machines with many cores
- * - Performance-testing
+ * v Add sharding for keys, based on hash (optional) for faster access on machines with many cores
+ * v Performance-testing
  * - Add expiration
  * v Handle invalidated keys, also for pending requests
  */
