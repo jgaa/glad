@@ -48,6 +48,8 @@ namespace jgaa::abb {
  *
  *  - executorT The asio executor to use for the cache itself.
  *           Normally a boost::asio::io_context used by your application.
+ *
+ *  - hashT  Hash function to use for the sharding based on keys.
  */
 
 #ifndef JGAA_ABB_MAP_TYPE
@@ -93,7 +95,7 @@ class Cache {
     // Data regarding pending requests
     struct Pending {
         using self_t = std::unique_ptr<SelfBase>;
-        using list_t = std::vector<self_t>;
+        using list_t = std::deque<self_t>;
         bool invalidated = false;
         std::variant<self_t, list_t> requests_pending;
 
