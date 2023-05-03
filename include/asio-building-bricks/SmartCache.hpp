@@ -16,11 +16,11 @@
 
 /* Todo
  *
- * - Add optimization to not create a queue when there is only one request pending
+ * v Add optimization to not create a queue when there is only one request pending
  * - Add sharding for keys, based on hash (optional) for faster access on machines with many cores
  * - Performance-testing
  * - Add expiration
- * - Handle invalidated keys, also for pending requests
+ * v Handle invalidated keys, also for pending requests
  */
 
 namespace jgaa::abb {
@@ -67,8 +67,67 @@ class Cache {
     }
 
     using self_t = std::unique_ptr<SelfBase>;
-    using pending_t = std::vector<self_t>;
-    using value_t = std::variant<valueT, pending_t>;
+
+    // Data regarding pending requests
+    struct Pending {
+        using list_t = std::vector<self_t>;
+        bool invalidated = false;
+        std::variant<self_t, list_t> requests_pending;
+
+        Pending(self_t&& self)
+            : requests_pending{std::move(self)}
+        {
+        }
+
+        Pending& operator += (self_t && self) {
+            if (std::holds_alternative<self_t>(requests_pending)) {
+                auto& s = std::get<self_t>(requests_pending);
+
+                list_t list;
+                list.emplace_back(std::move(s));
+                requests_pending = std::move(list);
+            }
+
+            assert(std::holds_alternative<list_t>(requests_pending));
+            auto& list = std::get<list_t>(requests_pending);
+            list.emplace_back(std::move(self));
+
+            return *this;
+        }
+
+        void complete(const boost::system::error_code& e, std::any value) {
+            if (std::holds_alternative<list_t>(requests_pending)) {
+                auto& list = std::get<list_t>(requests_pending);
+                for(auto& self : list) {
+                    assert(self);
+                    if (e) {
+                        self->fail(e);
+                    } else {
+                        self->complete(value);
+                    }
+                }
+                list.clear();
+            } else if (std::holds_alternative<self_t>(requests_pending)) {
+                auto& pending = std::get<self_t>(requests_pending);
+                assert(pending);
+                if (pending) {
+                    if (e) {
+                        pending->fail(e);
+                    } else {
+                        pending->complete(value);
+                    }
+                }
+            } else {
+                assert(false && "Invalid type in Pending.requests_pending");
+            }
+        }
+
+        void cancel() {
+            complete(boost::system::errc::make_error_code(boost::system::errc::operation_canceled), {});
+        }
+    };
+
+    using value_t = std::variant<valueT, Pending>;
     using cache_t = std::unordered_map<keyT, value_t>;
 public:
     using fetch_cb_t = std::function<void(boost::system::error_code e, valueT value)>;
@@ -93,16 +152,46 @@ public:
             }, token, strand_);
     }
 
-    void erase(key_t key, boost::system::error_code ec) {
+    template <typename CompletionToken>
+    auto exists(keyT key, bool needsValue, CompletionToken&& token) {
+        return boost::asio::async_compose<CompletionToken,void(bool)>([this, needsValue, &key](auto& self) mutable {
+                boost::asio::post(strand_, [this, needsValue, self=std::move(self), key=std::move(key)]() mutable {
+                if (auto it = cache_.find(key); it != cache_.end()) {
+                    if (needsValue) {
+                        self.complete(std::holds_alternative<valueT>(it->second));
+                        return;
+                    }
+                    self.complete(true);
+                    return;
+                }
+                self.complete(false);
+                });
+            }, token, strand_);
+    }
+
+    void erase(keyT key, boost::system::error_code ec = boost::system::errc::make_error_code(boost::system::errc::operation_canceled)) {
         strand_.dispatch([this, key=std::move(key), ec] {
             if (auto it = cache_.find(key); it != cache_.end()) {
                 auto& v = it->second;
-                if (std::holds_alternative<pending_t>(v)) {
-                    for(auto & s : std::get<pending_t>(v)) {
-                        s.fail(ec);
-                    }
+                if (std::holds_alternative<Pending>(v)) {
+                    auto& pending = std::get<Pending>(v);
+                    pending.complete(ec, {});
                 }
                 cache_.erase(it);
+            }
+        });
+    }
+
+    void invalidate(keyT key) {
+        strand_.dispatch([this, key=std::move(key)] {
+            if (auto it = cache_.find(key); it != cache_.end()) {
+                auto& v = it->second;
+                if (std::holds_alternative<valueT>(v)) {
+                    cache_.erase(it);
+                } else if (std::holds_alternative<Pending>(v)) {
+                    auto& pending = std::get<Pending>(v);
+                    pending.invalidated = true;
+                }
             }
         });
     }
@@ -117,11 +206,11 @@ private:
                 self.complete({}, std::get<valueT>(v));
                 return;
             }
-            if (std::holds_alternative<pending_t>(v)) {
+            if (std::holds_alternative<Pending>(v)) {
                 // We don't have the value, but we are in the process of querying for it.
                 // Add the requester to the list of requesters.
-                auto& pending = std::get<pending_t>(v);
-                pending.emplace_back(make_self(std::move(self)));
+                auto& pending = std::get<Pending>(v);
+                pending += make_self(std::move(self));
                 return;
             }
             assert(false && "The cache holds neither a value or a list of pending requests!");
@@ -130,29 +219,36 @@ private:
         }
 
         // The key is not in the list.
-        pending_t pending;
-        pending.emplace_back(make_self(std::move(self)));
-        cache_[key] = std::move(pending);
+        cache_[key].template emplace<Pending>(make_self(std::move(self)));
+        fetch(key);
+    }
 
-        fetch_(key, [key=key, this](boost::system::error_code e, valueT value) {
-            strand_.dispatch([this, e, key=std::move(key), value=std::move(value)] {
-                auto& v = cache_[key];
-                if (std::holds_alternative<pending_t>(v)) {
-                    for(auto & s : std::get<pending_t>(v)) {
-                        if (e) {
-                            s->fail(e);
+    void fetch(const keyT& key) {
+        strand_.post([key=key, this] {
+            fetch_(key, [key=key, this](boost::system::error_code e, valueT value) {
+                strand_.dispatch([this, e, key=std::move(key), value=std::move(value)] {
+                    // Only do something if the key exists. It may have been erased since we started the call.
+                    if (auto it = cache_.find(key); it != cache_.end()) {
+                        auto& v = it->second;
+                        if (std::holds_alternative<Pending>(v)) [[unlikely]] {
+                            auto& pending = std::get<Pending>(v);
+                            if (pending.invalidated) [[unlikely]] {
+                                // We need to re-try the request
+                                pending.invalidated = false;
+                                fetch(key);
+                                return;
+                            }
+                            pending.complete(e, value);
+                        }
+
+                        if (e) [[unlikely]] {
+                            // Failed
+                            cache_.erase(key);
                         } else {
-                            s->complete(value);
+                            v = value;
                         }
                     }
-                }
-
-                if (e) {
-                    // Failed
-                    cache_.erase(key);
-                } else {
-                    v = value;
-                }
+                });
             });
         });
     }
