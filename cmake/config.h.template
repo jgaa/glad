@@ -5,3 +5,4 @@
 
 #cmakedefine ABB_VERSION ${ABB_VERSION}
 #cmakedefine ABB_VERSION_STR ${ABB_VERSION_STR}
+#cmakedefine JGAA_ABB_MAP_TYPE ${JGAA_ABB_MAP_TYPE}

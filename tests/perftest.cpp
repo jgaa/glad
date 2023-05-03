@@ -29,7 +29,8 @@ const string key = "whatever";
 
 struct Config {
     size_t xSize = 1000;
-    size_t ySize = 1000;
+    size_t ySize = 10000;
+    size_t failedKeys = 1000;
     size_t numThreads = std::thread::hardware_concurrency() * 2;
     std::string reportPath;
 };
@@ -40,8 +41,6 @@ Config config;
 
 
 void perftests() {
-    atomic_size_t created_keys_count{0};
-
     auto get_key = [](size_t x, size_t y) {
         assert(x < config.xSize);
         assert(y < config.ySize);
@@ -53,9 +52,14 @@ void perftests() {
     };
 
     boost::asio::io_context ctx;
-    cache_t cache([&get_value, &created_keys_count](const string_view& key, cache_t::fetch_cb_t cb) {
+    cache_t cache([&get_value](const string_view& key, cache_t::fetch_cb_t cb) {
+        if (key == invalid) {
+            static const auto err = boost::system::errc::make_error_code(boost::system::errc::bad_message);
+            cb(err, {});
+            return;
+        }
+
         cb({}, get_value(key));
-        ++created_keys_count;
     }, ctx);
 
     // Prevent the context from running out of work
@@ -114,6 +118,13 @@ void perftests() {
             }, boost::asio::detached);
     }
 
+
+    for(auto i = 0; i < config.failedKeys; ++i) {
+        boost::asio::co_spawn(ctx, [i, &ctx, &cache]() mutable -> boost::asio::awaitable<void> {
+            co_await cache.get(invalid, boost::asio::use_awaitable);
+        }, boost::asio::detached);
+    }
+
     // Now, allow the ctx to run out of work
     work.reset();
 
@@ -162,7 +173,12 @@ int main(int argc, char **argv) {
         return -1;
     }
 
-    cout << "Starting up (using jgaa::abb " << ABB_VERSION_STR << ", boost " << BOOST_LIB_VERSION << ")." << endl;
+    const auto numObjects = config.xSize * config.ySize;
+
+    cout << "Starting up (using jgaa::abb " << ABB_VERSION_STR << ", boost " << BOOST_LIB_VERSION << ")." << endl
+         << "I will crate " << numObjects << " and then read "
+         << numObjects << " random keys and "
+         << config.failedKeys << " nonexisting keys. " << endl;
 
     perftests();
     rusage ru = {};

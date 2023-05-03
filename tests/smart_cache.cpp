@@ -27,7 +27,7 @@ const string key = "whatever";
 TEST(Cache, AddOneCb) {
 
     boost::asio::io_context ctx;
-    cache_t cache([this](const string_view& key, cache_t::fetch_cb_t cb) {
+    cache_t cache([this](const string& key, cache_t::fetch_cb_t cb) {
         cb({}, valid);
     }, ctx);
 
@@ -42,7 +42,7 @@ TEST(Cache, AddOneCb) {
 TEST(Cache, AddOneStackfulCoro) {
 
     boost::asio::io_context ctx;
-    cache_t cache([this](const string_view& key, cache_t::fetch_cb_t cb) {
+    cache_t cache([this](const string& key, cache_t::fetch_cb_t cb) {
         cb({}, valid);
     }, ctx);
 
@@ -61,7 +61,7 @@ TEST(Cache, AddOneStackfulCoro) {
 TEST(Cache, AddOneCxx20Coro) {
 
     boost::asio::io_context ctx;
-    cache_t cache([this](const string_view& key, cache_t::fetch_cb_t cb) {
+    cache_t cache([this](const string& key, cache_t::fetch_cb_t cb) {
         cb({}, valid);
     }, ctx);
 
@@ -86,7 +86,7 @@ TEST(Cache, AddOneCxx20Coro) {
 TEST(Cache, FailOneCxx20Coro) {
 
     boost::asio::io_context ctx;
-    cache_t cache([this](const string_view& key, cache_t::fetch_cb_t cb) {
+    cache_t cache([this](const string& key, cache_t::fetch_cb_t cb) {
         cb(boost::system::errc::make_error_code(boost::system::errc::io_error), {});
     }, ctx);
 
@@ -122,12 +122,12 @@ TEST(Cache, TestWithManyKeys) {
         return "test-x="s + to_string(x) + "-y=" + to_string(y);
     };
 
-    auto get_value = [](string_view key) {
+    auto get_value = [](string key) {
         return "value: "s + string{key};
     };
 
     boost::asio::io_context ctx;
-    cache_t cache([this, &get_value, &created_keys_count](const string_view& key, cache_t::fetch_cb_t cb) {
+    cache_t cache([this, &get_value, &created_keys_count](const string& key, cache_t::fetch_cb_t cb) {
         cb({}, get_value(key));
         ++created_keys_count;
     }, ctx);
@@ -221,7 +221,7 @@ TEST(Cache, TestWithSimultaneousRequests) {
         });
     }
 
-    cache_t cache([&](const string_view& key, cache_t::fetch_cb_t cb) {
+    cache_t cache([&](const string& key, cache_t::fetch_cb_t cb) {
 
         // We use only one key in this test, so the lookup should only happen once
         static atomic_size_t called{0};
@@ -269,7 +269,7 @@ TEST(Cache, TestInvalidate) {
     optional<cache_t::fetch_cb_t> pending_cb;
     std::promise<void> called_once;
 
-    cache_t cache([&](const string_view& key, cache_t::fetch_cb_t cb) {
+    cache_t cache([&](const string& key, cache_t::fetch_cb_t cb) {
         if (!pending_cb) {
             pending_cb.emplace(std::move(cb));
             called_once.set_value();
@@ -333,7 +333,7 @@ TEST(Cache, TestEraseKey) {
     std::promise<void> called_once;
     std::promise<void> called_twice;
 
-    cache_t cache([&](const string_view& key, cache_t::fetch_cb_t cb) {
+    cache_t cache([&](const string& key, cache_t::fetch_cb_t cb) {
         if (!pending_cb) {
             pending_cb.emplace(std::move(cb));
             called_once.set_value();

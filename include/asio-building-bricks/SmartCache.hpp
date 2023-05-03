@@ -1,11 +1,13 @@
 #pragma once
 
+#include <string>
 #include <any>
 #include <memory>
 #include <deque>
 #include <vector>
 #include <string>
 #include <unordered_map>
+#include <boost/unordered/unordered_flat_map.hpp>
 #include <atomic>
 #include <variant>
 #include <iostream>
@@ -13,6 +15,7 @@
 #include <boost/leaf.hpp>
 #include <boost/asio.hpp>
 
+#include "asio-building-bricks/config.h"
 
 /* Todo
  *
@@ -47,7 +50,11 @@ namespace jgaa::abb {
  *           Normally a boost::asio::io_context used by your application.
  */
 
-template <typename valueT, typename keyT, typename executorT>
+#ifndef JGAA_ABB_MAP_TYPE
+#   define JGAA_ABB_MAP_TYPE boost::unordered_flat_map
+#endif
+
+template <typename valueT, typename keyT, typename executorT, typename hashT=std::hash<keyT>>
 class Cache {
 
     struct SelfBase {
@@ -144,7 +151,52 @@ class Cache {
     };
 
     using value_t = std::variant<valueT, Pending>;
-    using cache_t = std::unordered_map<keyT, value_t>;
+    using cache_t = JGAA_ABB_MAP_TYPE<keyT, value_t>;
+
+    // Use "sharding" based on a hash from the key
+    // This allows up to 'numShards' number of lookups or callbacks to be processed in parallel,
+    // which gives a significant performance boost on machines with may cores.
+    class Shards {
+    public:
+        struct Shard {
+            Shard(executorT& e)
+                : strand_{e} {};
+
+            Shard() = delete;
+
+            auto& strand() noexcept {
+                return strand_;
+            }
+
+            auto& cache() noexcept {
+                return cache_;
+            }
+
+        private:
+            boost::asio::io_context::strand strand_;
+            cache_t cache_;
+        };
+
+
+        Shards(size_t numShards, executorT& e)
+            : numShards_{numShards}
+        {
+            shards_.reserve(numShards);
+            for(auto i = 0; i < numShards; ++i) {
+                shards_.emplace_back(e);
+            }
+        }
+
+        auto& shard(const keyT& key) {
+            size_t h = hasher_(key);
+            return shards_[h % numShards_];
+        }
+
+        hashT hasher_;
+        std::vector<Shard> shards_;
+        const size_t numShards_;
+    };
+
 public:
     using fetch_cb_t = std::function<void(boost::system::error_code e, valueT value)>;
     using fetch_t = std::function<void(const keyT&, fetch_cb_t &&)>;
@@ -155,10 +207,10 @@ public:
      *  \param executor Executor to use by the cache. Normally the
      *               boost::asio::io_context used by your application.
      */
-    Cache(fetch_t && fetch, executorT& executor)
+    Cache(fetch_t && fetch, executorT& executor, size_t numShards=16)
         : executor_{executor}
+        , shards_{numShards, executor}
         , fetch_{std::move(fetch)}
-        , strand_{executor_}
         //, timer_{strand_.get_executor()}
     {
     }
@@ -174,13 +226,14 @@ public:
      */
     template <typename CompletionToken>
     auto get(keyT key, CompletionToken&& token) {
+        auto &strand = shard(key).strand();
         return boost::asio::async_compose<CompletionToken,
             void(boost::system::error_code e, valueT value)>
-            ([this, &key](auto& self) mutable {
-                boost::asio::post(strand_, [this, self=std::move(self), key=std::move(key)]() mutable {
+            ([this, &key, &strand](auto& self) mutable {
+                boost::asio::post(strand, [this, self=std::move(self), key=std::move(key)]() mutable {
                     get_(key, std::move(self));
                 });
-            }, token, strand_);
+            }, token, strand);
     }
 
 
@@ -193,9 +246,11 @@ public:
      */
     template <typename CompletionToken>
     auto exists(keyT key, bool needsValue, CompletionToken&& token) {
-        return boost::asio::async_compose<CompletionToken,void(bool)>([this, needsValue, &key](auto& self) mutable {
-                boost::asio::post(strand_, [this, needsValue, self=std::move(self), key=std::move(key)]() mutable {
-                if (auto it = cache_.find(key); it != cache_.end()) {
+        auto &strand = shard(key).strand();
+        return boost::asio::async_compose<CompletionToken,void(bool)>([this, needsValue, &key, &strand](auto& self) mutable {
+                boost::asio::post(strand, [this, needsValue, self=std::move(self), key=std::move(key)]() mutable {
+                auto& cache = shard(key).cache();
+                if (auto it = cache.find(key); it != cache.end()) {
                     if (needsValue) {
                         self.complete(std::holds_alternative<valueT>(it->second));
                         return;
@@ -205,7 +260,7 @@ public:
                 }
                 self.complete(false);
                 });
-            }, token, strand_);
+            }, token, strand);
     }
 
     /*! Erase a key from the cache
@@ -222,14 +277,16 @@ public:
      *            Defaults to boost::system::errc::operation_canceled.
      */
     void erase(keyT key, boost::system::error_code ec = boost::system::errc::make_error_code(boost::system::errc::operation_canceled)) {
-        strand_.dispatch([this, key=std::move(key), ec] {
-            if (auto it = cache_.find(key); it != cache_.end()) {
+        auto& shrd = shard(key);
+        shrd.strand().dispatch([this, &shrd, key=std::move(key), ec] {
+            auto& cache = shrd.cache();
+            if (auto it = cache.find(key); it != cache.end()) {
                 auto& v = it->second;
                 if (std::holds_alternative<Pending>(v)) {
                     auto& pending = std::get<Pending>(v);
                     pending.complete(ec, {});
                 }
-                cache_.erase(it);
+                cache.erase(it);
             }
         });
     }
@@ -253,11 +310,13 @@ public:
      *  \param key Key to get.
      */
     void invalidate(keyT key) {
-        strand_.dispatch([this, key=std::move(key)] {
-            if (auto it = cache_.find(key); it != cache_.end()) {
+        auto& shrd = shard(key);
+        shrd.strand().dispatch([this, &shrd, key=std::move(key)] {
+            auto& cache = shrd.cache();
+            if (auto it = cache.find(key); it != cache.end()) {
                 auto& v = it->second;
                 if (std::holds_alternative<valueT>(v)) {
-                    cache_.erase(it);
+                    cache.erase(it);
                 } else if (std::holds_alternative<Pending>(v)) {
                     auto& pending = std::get<Pending>(v);
                     pending.invalidated = true;
@@ -269,7 +328,8 @@ public:
 private:
     template <typename selfT>
     auto get_(const keyT& key, selfT&& self) {
-        if (auto it = cache_.find(key); it != cache_.end()) {
+        auto& cache = shard(key).cache();
+        if (auto it = cache.find(key); it != cache.end()) {
             auto& v = it->second;
             if (std::holds_alternative<valueT>(v)) {
                 // We have a valid value. Just hand it out.
@@ -289,16 +349,18 @@ private:
         }
 
         // The key is not in the list.
-        cache_[key].template emplace<Pending>(make_self(std::move(self)));
+        cache[key].template emplace<Pending>(make_self(std::move(self)));
         fetch(key);
     }
 
     void fetch(const keyT& key) {
-        strand_.post([key=key, this] {
-            fetch_(key, [key=key, this](boost::system::error_code e, valueT value) {
-                strand_.dispatch([this, e, key=std::move(key), value=std::move(value)] {
+        auto& shrd = shard(key);
+        shrd.strand().post([key=key, &shrd, this] {
+            fetch_(key, [key=key, &shrd, this](boost::system::error_code e, valueT value) {
+                shrd.strand().dispatch([this, &shrd, e, key=std::move(key), value=std::move(value)] {
+                    auto& cache = shrd.cache();
                     // Only do something if the key exists. It may have been erased since we started the call.
-                    if (auto it = cache_.find(key); it != cache_.end()) {
+                    if (auto it = cache.find(key); it != cache.end()) {
                         auto& v = it->second;
                         if (std::holds_alternative<Pending>(v)) [[unlikely]] {
                             auto& pending = std::get<Pending>(v);
@@ -313,7 +375,7 @@ private:
 
                         if (e) [[unlikely]] {
                             // Failed
-                            cache_.erase(key);
+                            cache.erase(key);
                         } else {
                             v = value;
                         }
@@ -323,10 +385,13 @@ private:
         });
     }
 
-    cache_t cache_;
+    auto& shard(const keyT& key) noexcept {
+        return shards_.shard(key);
+    }
+
+    //cache_t cache_;
     executorT& executor_;
-    boost::asio::io_context::strand strand_;
-    //boost::asio::deadline_timer timer_;
+    Shards shards_;
     fetch_t fetch_;
 };
 

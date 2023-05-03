@@ -13,6 +13,20 @@ project(asio-building-bricks
 set(ABB_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
 
 option(ABB_WITH_TESTS "Enable Tests" ON)
+option(ABB_USE_STD_UNORDERED_MAP "Enable Tests" OFF)
+option(ABB_USE_BOOST_FLAT_UNORDERED_MAP "Enable Tests" OFF)
+
+if (ABB_USE_STD_UNORDERED_MAP AND ABB_USE_BOOST_FLAT_UNORDERED_MAP)
+    message(FATAL_ERROR "You can use ABB_USE_STD_UNORDERED_MAP or ABB_USE_BOOST_FLAT_UNORDERED_MAP")
+endif()
+
+if (ABB_USE_STD_UNORDERED_MAP)
+    set(JGAA_ABB_MAP_TYPE std::unordered_map)
+endif()
+
+if (ABB_USE_BOOST_FLAT_UNORDERED_MAP)
+    set(JGAA_ABB_MAP_TYPE boost::unordered_flat_map)
+endif()
 
 if (ABB_WITH_TESTS)
     find_package(GTest REQUIRED)

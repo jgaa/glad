@@ -20,6 +20,7 @@ target_include_directories(smart_cache
     $<BUILD_INTERFACE:${NSBLAST_ROOT}/include
     $<BUILD_INTERFACE:${NSBLAST_ROOT}/src/lib
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+    $<BUILD_INTERFACE: ${CMAKE_BINARY_DIR}/generated-include
     )
 
 target_link_libraries(smart_cache
