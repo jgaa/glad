@@ -31,3 +31,35 @@ target_link_libraries(smart_cache
 
 add_test(NAME smart_cache COMMAND  smart_cache)
 
+
+#######  perftest
+
+add_executable(perftest
+    perftest.cpp
+    )
+
+set_property(TARGET perftest PROPERTY CXX_STANDARD 20)
+
+add_dependencies( perftest
+    asio-building-bricks
+    ${DEPENDS_GTEST}
+    )
+
+target_include_directories(perftest
+    PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}
+    $<BUILD_INTERFACE:${NSBLAST_ROOT}/include
+    $<BUILD_INTERFACE:${NSBLAST_ROOT}/src/lib
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+    $<BUILD_INTERFACE: ${CMAKE_BINARY_DIR}/generated-include
+    )
+
+target_link_libraries(perftest
+    ${GTEST_LIBRARIES}
+    asio-building-bricks
+    ${Boost_LIBRARIES}
+    ${CMAKE_THREAD_LIBS_INIT}
+)
+
+add_test(NAME perftest COMMAND  perftest)
+

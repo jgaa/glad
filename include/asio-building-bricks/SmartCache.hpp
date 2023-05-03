@@ -27,7 +27,24 @@ namespace jgaa::abb {
 
 /*! Generic cache with asio composed completion
  *
+ * The cache is a trivial key/value store. If an item is not found,
+ * a fetch method (supplied by you) are called to asyncrouneously get the
+ * value. The request is paused, and the thread freed to do other work.
  *
+ * If more requests comes in for a key that is in the process of being looked up,
+ * they are added to a list of pending requests. A key is only fetched once. When
+ * the value is available, any and all pending requests are resumed.
+ *
+ *
+ * The templatye arguments are:
+ *  - valueT The type of athe value. Normally a shared_ptr for complex
+ *           objects and a value for trivial objects (that are fast to copy).
+ *           The type must be copyable and should be movable
+ *
+ *  - keyT   The type of the key. It should be copyable and movable.
+ *
+ *  - executorT The asio executor to use for the cache itself.
+ *           Normally a boost::asio::io_context used by your application.
  */
 
 template <typename valueT, typename keyT, typename executorT>
@@ -66,10 +83,9 @@ class Cache {
         return make_unique<Self<selfT, valueT>>(std::move(self));
     }
 
-    using self_t = std::unique_ptr<SelfBase>;
-
     // Data regarding pending requests
     struct Pending {
+        using self_t = std::unique_ptr<SelfBase>;
         using list_t = std::vector<self_t>;
         bool invalidated = false;
         std::variant<self_t, list_t> requests_pending;
@@ -133,6 +149,12 @@ public:
     using fetch_cb_t = std::function<void(boost::system::error_code e, valueT value)>;
     using fetch_t = std::function<void(const keyT&, fetch_cb_t &&)>;
 
+    /*! Constructor
+     *
+     *  \param fetch Functor to fetch values to the cache.
+     *  \param executor Executor to use by the cache. Normally the
+     *               boost::asio::io_context used by your application.
+     */
     Cache(fetch_t && fetch, executorT& executor)
         : executor_{executor}
         , fetch_{std::move(fetch)}
@@ -141,6 +163,15 @@ public:
     {
     }
 
+    /*! Asynchrouneosly get a value from the cache.
+     *
+     *  If the value is not currently in the cache,
+     *  it will be attempted fetched before the completion
+     *  handler is called.
+     *
+     *  \param key Key to get.
+     *  \param token Your continuation handler.
+     */
     template <typename CompletionToken>
     auto get(keyT key, CompletionToken&& token) {
         return boost::asio::async_compose<CompletionToken,
@@ -152,6 +183,14 @@ public:
             }, token, strand_);
     }
 
+
+    /*! Asynchrouneosly checks if a value exists in the cache
+     *
+     *  \param key Key to get.
+     *  \param needsValue If true, the methid will only return true if the key holds a value.
+     *      If the key is being looked up for don't exist, the result will be false.
+     *  \param token Your continuation handler.
+     */
     template <typename CompletionToken>
     auto exists(keyT key, bool needsValue, CompletionToken&& token) {
         return boost::asio::async_compose<CompletionToken,void(bool)>([this, needsValue, &key](auto& self) mutable {
@@ -169,6 +208,19 @@ public:
             }, token, strand_);
     }
 
+    /*! Erase a key from the cache
+     *
+     *  Pending requests will complete with the error code you supplied,
+     *  and the key will be removed.
+     *
+     *  The method returns immediately, and the erase operation is scheduled
+     *  to be run as soon as a thread is available.
+     *
+     *  \param key Key to get.
+     *  \param ec Error-code to forward to any requests that are waiting for a
+     *            fetch operation for this key.
+     *            Defaults to boost::system::errc::operation_canceled.
+     */
     void erase(keyT key, boost::system::error_code ec = boost::system::errc::make_error_code(boost::system::errc::operation_canceled)) {
         strand_.dispatch([this, key=std::move(key), ec] {
             if (auto it = cache_.find(key); it != cache_.end()) {
@@ -182,6 +234,24 @@ public:
         });
     }
 
+    /*! Invalidate a key from the cache
+     *
+     *  If there are pending requests waiting for a lookup,
+     *  a new lookup will be performed when the current
+     *  lookup operation completes. The assumption is that
+     *  if a lookup is in progress while the key is invalidated, the
+     *  result for the current operation is likely to be wrong.
+     *  A new operation will therefor happen as soon as the current
+     *  operaion finish (either wilh a value or an error).
+     *
+     *  This means that you can invalidate a key, without interrupting
+     *  requests waiting for the value.
+     *
+     *  The method returns immediately, and the erase operation is scheduled
+     *  to be run as soon as a thread is available.
+     *
+     *  \param key Key to get.
+     */
     void invalidate(keyT key) {
         strand_.dispatch([this, key=std::move(key)] {
             if (auto it = cache_.find(key); it != cache_.end()) {
