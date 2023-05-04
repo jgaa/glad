@@ -47,7 +47,7 @@ namespace jgaa::abb {
  *
  *  - keyT   The type of the key. It should be copyable and movable.
  *
- *  - executorT The asio executor to use for the cache itself.
+ *  - asioCtxT The asio io context to use for the cache itself.
  *           Normally a boost::asio::io_context used by your application.
  *
  *  - hashT  Hash function to use for the sharing based on keys.
@@ -57,8 +57,8 @@ namespace jgaa::abb {
 #   define JGAA_ABB_MAP_TYPE boost::unordered_flat_map
 #endif
 
-template <typename valueT, typename keyT, typename executorT, typename hashT=std::hash<keyT>>
-class Cache {
+template <typename keyT, typename valueT, typename asioCtxT, typename fetchT, typename hashT=std::hash<keyT>>
+class SmartCacheT {
 
     struct SelfBase {
         virtual ~SelfBase() = default;
@@ -157,7 +157,7 @@ class Cache {
     class Shards {
     public:
         struct Shard {
-            Shard(executorT& e)
+            Shard(asioCtxT& e)
                 : strand_{e} {};
 
             Shard() = delete;
@@ -176,8 +176,8 @@ class Cache {
         };
 
 
-        Shards(size_t numShards, executorT& e)
-            : numShards_{numShards}
+        Shards(size_t numShards, asioCtxT& e, const hashT& hash)
+            : numShards_{numShards}, hasher_{hash}
         {
             shards_.reserve(numShards);
             for(auto i = 0; i < numShards; ++i) {
@@ -190,32 +190,40 @@ class Cache {
             return shards_[h % numShards_];
         }
 
-        hashT hasher_;
+        const hashT& hasher_;
         std::vector<Shard> shards_;
         const size_t numShards_;
     };
 
 public:
     using fetch_cb_t = std::function<void(boost::system::error_code e, valueT value)>;
-    using fetch_t = std::function<void(const keyT&, fetch_cb_t &&)>;
+    using fetch_t = fetchT; //std::function<void(const keyT&, fetch_cb_t &&)>;
 
     /*! Constructor
      *
      *  \param fetch Functor to fetch values to the cache.
-     *  \param executor Executor to use by the cache. Normally the
+     *  \param asioCtx asioCtx to use by the cache. Normally the
      *               boost::asio::io_context used by your application.
      *  \param numShards Number of shards to use. You will have
      *               to experiment to find the best value for your application
      *               (least CPU time or least duration, whatever makes most sense
      *               in your use-case).
      */
-    Cache(fetch_t && fetch, executorT& executor, size_t numShards=7)
-        : executor_{executor}
-        , shards_{numShards, executor}
+    SmartCacheT(fetch_t fetch, asioCtxT& asioCtx, size_t numShards=7, hashT && hash = {})
+        : asioCtx_{asioCtx}
+        , hash_{std::move(hash)}
+        , shards_{numShards, asioCtx, hash_}
         , fetch_{std::move(fetch)}
-        //, timer_{strand_.get_executor()}
+        //, timer_{strand_.get_asioCtx()}
     {
     }
+
+    SmartCacheT() = delete;
+    SmartCacheT(const SmartCacheT&) = delete;
+    SmartCacheT(SmartCacheT &&) = default;
+
+    SmartCacheT& operator = (const SmartCacheT&) = delete;
+    SmartCacheT& operator = (SmartCacheT &&) = default;
 
     /*! Asynchronously get a value from the cache.
      *
@@ -391,9 +399,41 @@ private:
         return shards_.shard(key);
     }
 
-    executorT& executor_;
+    asioCtxT& asioCtx_;
+    hashT hash_;
     Shards shards_;
     fetch_t fetch_;
 };
+
+
+/*! Construct a SmartCache
+ *
+ *  \param fetch A functor to fetch the value if it's not found in the cache.
+ *  \param asioCtx asioCtx or io service to use, for example an instance of
+ *              boost::asio::io_context.
+ *  \param numShards Number of internal shartds for parallelism.
+ *  \param hashT Hash funtion that works woth the key's type.
+ *
+ *  \return A SmartCache instance
+ */
+template <typename keyT, typename valueT, typename asioCtxT ,
+          typename fetchT, typename hashT=std::hash<keyT>>
+auto make_cache(fetchT fetch,
+                asioCtxT& asioCtx,
+                size_t numShards =7,
+                hashT && hash={}) {
+    return SmartCacheT<keyT, valueT, asioCtxT, fetchT, hashT>(fetch, asioCtx, numShards, std::move(hash));
+}
+
+/*! Typename that can be easily used in class definitions
+ *
+ *  For example: jgaa:abb::SmartCache<std::string, std::shared_ptr<SomeObject>, boost::asio::io_context> cache_;
+ */
+template <typename keyT, typename valueT,
+         typename asioCtxT=boost::asio::io_context,
+         typename fetchCbT=std::function<void(boost::system::error_code e, valueT value)>,
+         typename fetchT=std::function<void(const keyT&, fetchCbT &&)>,
+         typename hashT=std::hash<keyT>>
+using SmartCache = SmartCacheT<keyT, valueT, asioCtxT, fetchT, hashT>;
 
 } // ns

@@ -22,7 +22,7 @@ using namespace std::string_literals;
 
 namespace {
 
-using cache_t = Cache<string, string, boost::asio::io_context>;
+//using cache_t = Cache<string, string, boost::asio::io_context>;
 const auto valid =  "This is a test"s;
 const auto invalid =  "Wrong value"s;
 const string key = "whatever";
@@ -56,12 +56,6 @@ public:
     const decltype (std::chrono::steady_clock::now()) start_;
 };
 
-inline void SetThreadName(const char *name) {
-#ifdef HAVE_PRCTL
-    prctl(PR_SET_NAME, reinterpret_cast<unsigned long>(name), 0, 0, 0);
-#endif
-}
-
 } // ns
 
 
@@ -77,14 +71,15 @@ void perftests() {
     };
 
     boost::asio::io_context ctx;
-    cache_t cache([&get_value](const string_view& key, cache_t::fetch_cb_t cb) {
+    //SmartCache<string, string, decltype(ctx)> cache([&get_value](const string& key, auto && cb) {
+    auto cache = make_cache<string, shared_ptr<string>>([&get_value](const string& key, auto && cb) {
         if (key == invalid) {
             static const auto err = boost::system::errc::make_error_code(boost::system::errc::bad_message);
             cb(err, {});
             return;
         }
 
-        cb({}, get_value(key));
+        cb({}, make_shared<string>(get_value(key)));
     }, ctx, config.numShards);
 
     // Prevent the context from running out of work
@@ -207,9 +202,9 @@ int main(int argc, char **argv) {
 
     cout << "Starting up (using jgaa::abb " << ABB_VERSION_STR << ", boost " << BOOST_LIB_VERSION << ")." << endl
          << "Using " << config.numThreads << " threads and " << config.numShards << " shards." << endl
-         << "I will crate " << numObjects << " objects and then read "
+         << "I will create " << numObjects << " objects and then read "
          << numObjects << " existing objects using random keys and "
-         << config.failedKeys << " nonexisting keys. " << endl;
+         << config.failedKeys << " failed keys (errors on fetch). " << endl;
 
     perftests();
     rusage ru = {};

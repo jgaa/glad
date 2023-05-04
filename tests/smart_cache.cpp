@@ -8,6 +8,7 @@
 #include <boost/asio/spawn.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/chrono.hpp>
+#include <boost/functional/hash.hpp>
 
 
 using namespace jgaa::abb;
@@ -16,18 +17,17 @@ using namespace std::string_literals;
 
 namespace {
 
-using cache_t = Cache<string, string, boost::asio::io_context>;
+using cache_t = SmartCache<string, string>;
 const auto valid =  "This is a test"s;
 const auto invalid =  "Wrong value"s;
 const string key = "whatever";
 
 } // ns
 
-
-TEST(Cache, AddOneCb) {
+TEST(Cache, ContructWithArgs) {
 
     boost::asio::io_context ctx;
-    cache_t cache([this](const string& key, cache_t::fetch_cb_t cb) {
+    auto cache = make_cache<string, string>([this](const string& key, auto cb) {
         cb({}, valid);
     }, ctx);
 
@@ -38,6 +38,22 @@ TEST(Cache, AddOneCb) {
 
     ctx.run();
 }
+
+TEST(Cache, AddOneCb) {
+
+    boost::asio::io_context ctx;
+    auto  cache = make_cache<string, string>([this](const string& key, auto&& cb) {
+        cb({}, valid);
+    }, ctx);
+
+    cache.get(key, [](boost::system::error_code e, const string& rv) {
+        EXPECT_FALSE(e);
+        EXPECT_EQ(rv, valid);
+    });
+
+    ctx.run();
+}
+
 
 TEST(Cache, AddOneStackfulCoro) {
 
@@ -420,6 +436,7 @@ TEST(Cache, TestEraseKey) {
         t.join();
     }
 }
+
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
