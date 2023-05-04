@@ -223,6 +223,7 @@ public:
      *               to experiment to find the best value for your application
      *               (least CPU time or least duration, whatever makes most sense
      *               in your use-case).
+     *  \param hash Hash functor for your key-type.
      */
     SmartCacheT(fetch_t fetch, asioCtxT& asioCtx, size_t numShards=7, hashT && hash = {})
         : asioCtx_{asioCtx}
