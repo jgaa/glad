@@ -131,7 +131,18 @@ class SmartCacheT {
         }
 
         void complete(const boost::system::error_code& e, std::any value) {
-            if (std::holds_alternative<list_t>(requests_pending)) {
+            if (std::holds_alternative<self_t>(requests_pending)) {
+                auto& pending = std::get<self_t>(requests_pending);
+                assert(pending);
+                if (pending) {
+                    if (e) {
+                        pending->fail(e);
+                    } else {
+                        pending->complete(value);
+                    }
+                }
+                pending.reset();
+            } else if (std::holds_alternative<list_t>(requests_pending)) {
                 auto& list = std::get<list_t>(requests_pending);
                 for(auto& self : list) {
                     assert(self);
@@ -142,17 +153,7 @@ class SmartCacheT {
                     }
                 }
                 list.clear();
-            } else if (std::holds_alternative<self_t>(requests_pending)) {
-                auto& pending = std::get<self_t>(requests_pending);
-                assert(pending);
-                if (pending) {
-                    if (e) {
-                        pending->fail(e);
-                    } else {
-                        pending->complete(value);
-                    }
-                }
-            } else {
+            } else [[unlikely]] {
                 assert(false && "Invalid type in Pending.requests_pending");
             }
         }
