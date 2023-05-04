@@ -99,7 +99,7 @@ TEST(Cache, AddOneCb) {
 }
 
 
-TEST(Cache, AddOneStackfulCoro) {
+TEST(Cache, AddOneStackfullCoro) {
 
     boost::asio::io_context ctx;
     cache_t cache([this](const string& key, cache_t::fetch_cb_t cb) {

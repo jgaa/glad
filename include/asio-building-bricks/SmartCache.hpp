@@ -398,27 +398,6 @@ private:
         }
     }
 
-    template <typename T>
-    std::string toString(T&) {
-        return {};
-    }
-
-    std::string toString(const std::string& v) {
-        return v;
-    }
-
-    std::string toString(const std::string_view& v) {
-        return std::string{v};
-    }
-
-    std::string toString(const uint64_t& v) {
-        return std::to_string(v);
-    }
-
-    std::string toString(const int64_t& v) {
-        return std::to_string(v);
-    }
-
     void fetch(const keyT& key) {
         auto& shrd = shard(key);
         shrd.strand().post([key=key, &shrd, this] {
@@ -451,9 +430,13 @@ private:
 #ifdef __unix__
                 estr << " of type : " << __cxxabiv1::__cxa_current_exception_type()->name();
 #endif
+                // If your compiler complains about "<< key", just add a
+                // std::ostream& operator << (std::ostream&, const the-type-of-key&) in the "std" namespace
+                // and include the declaration of that before including this header.
+
                 std::cerr << "*** FATAL jgaa::abb::SmartCache: "
                           << " caught unknown exception " << estr.str()
-                          << " while fetching key: " << toString(key) << std::endl;
+                          << " while fetching key: " << key << std::endl;
                 std::abort();
             }
         });
