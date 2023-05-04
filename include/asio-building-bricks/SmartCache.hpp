@@ -427,7 +427,7 @@ auto make_cache(fetchT fetch,
 
 /*! Typename that can be easily used in class definitions
  *
- *  For example: jgaa:abb::SmartCache<std::string, std::shared_ptr<SomeObject>, boost::asio::io_context> cache_;
+ *  For example: jgaa:abb::SmartCache<std::string, std::shared_ptr<SomeObject>> cache_;
  */
 template <typename keyT, typename valueT,
          typename asioCtxT=boost::asio::io_context,
