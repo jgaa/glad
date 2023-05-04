@@ -18,7 +18,7 @@ the value is available, any and all pending requests are resumed.
 
 - Uses asio composed completion templates. Supports asynchronous use of callbacks, 
 asio stackless co-routines, asio stackfull co-routines, asio/C++ 20 co-routines.
-- A value is only fetched once from the outside. If a thousand almost simultaneous requests for the same key occurs, on e request is made to lookup the key using the user-supplied *fetch* functor. When the value (or an error) is available, all the requests pending for that key is resumed (as threads becomes available). 
+- A value is only fetched once from the outside. If a thousand almost simultaneous requests for the same key occurs, one request is made to lookup the key using the user-supplied *fetch* functor. When the value (or an error) is available, all the requests pending for that key are resumed (as threads becomes available). 
 - A key can be invalidated at any time, also when there is a fetch operation in progress and one or more requests are waiting for that key. If there are requests waiting, a few fetch operation will be initiated to ensure that the requesters get the correct value.
 - A key can be erased at any time. 
 - Internally, the cache use sharding to allow simultaneous processing of different keys.
@@ -35,8 +35,8 @@ int main(int argc, char **argv) {
     // In this example, we use only the applications main-thread.
     boost::asio::io_context ctx;
     
-    // Create an instancxe of a cache with std::string as key and value types. 
-    auto jgaa::abb::make_cache<std::string, std::string>(
+    // Create an instance of a cache with std::string as key and value types. 
+    auto cache = jgaa::abb::make_cache<std::string, std::string>(
     
         // Lambda that is called by the cache when it encounters an unknown key.
         [this](const std::string& key, auto && cb) {
@@ -62,8 +62,8 @@ int main(int argc, char **argv) {
         // our lambda.
         value = co_await cache.get("Key2", boost::asio::use_awaitable)
         
-        // Lookup the first key. This one exists in the cache, and
-        // returns the value immediately.
+        // Lookup the first key. Now this key one exists in the cache, and
+        // the value is returend immediately.
         value = co_await cache.get("Key1", boost::asio::use_awaitable)
 
     }, boost::asio::detached);
