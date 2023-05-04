@@ -1,4 +1,4 @@
-# asio-building-bricks
+# Asio building bricks
 
 My intent is to create a handful of useful algorithms / building bricks built on top of boost.Asio
 
