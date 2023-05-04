@@ -24,6 +24,50 @@ const string key = "whatever";
 
 } // ns
 
+TEST(Cache, testExceptionInFetch) {
+
+    boost::asio::io_context ctx;
+    auto cache = make_cache<string, string>([this](const string& key, auto cb) {
+        throw boost::system::errc::make_error_code(boost::system::errc::io_error);
+    }, ctx);
+
+    cache.get(key, [](boost::system::error_code e, const string& rv) {
+        EXPECT_EQ(e, boost::system::errc::make_error_code(boost::system::errc::io_error));
+    });
+
+    ctx.run();
+}
+
+TEST(Cache, testStdExceptionInFetch) {
+
+    boost::asio::io_context ctx;
+    auto cache = make_cache<string, string>([this](const string& key, auto cb) {
+        throw runtime_error{"test"};
+    }, ctx);
+
+    cache.get(key, [](boost::system::error_code e, const string& rv) {
+        EXPECT_EQ(e, boost::system::errc::make_error_code(boost::system::errc::interrupted));
+    });
+
+    ctx.run();
+}
+
+TEST(Cache, testInvalidExceptionInFetch) {
+
+    boost::asio::io_context ctx;
+
+    struct BlowUp{};
+
+    auto cache = make_cache<string, string>([this](const string& key, auto cb) {
+        throw BlowUp{};
+    }, ctx);
+
+    cache.get(key, [](boost::system::error_code /*e*/, const string& /*rv*/){});
+
+    ASSERT_DEATH(ctx.run(), "FATAL jgaa::abb::SmartCache");
+}
+
+
 TEST(Cache, ContructWithArgs) {
 
     boost::asio::io_context ctx;

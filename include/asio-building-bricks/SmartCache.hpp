@@ -11,6 +11,7 @@
 #include <atomic>
 #include <variant>
 #include <iostream>
+#include <sstream>
 
 #include <boost/leaf.hpp>
 #include <boost/asio.hpp>
@@ -46,6 +47,19 @@ namespace jgaa::abb {
  *           The type must be copyable and should be movable
  *
  *  - keyT   The type of the key. It should be copyable and movable.
+ *
+ *  - fetchT A functor (for example a lambda) that know how to fetch a key from
+ *           it's real storage. It may send a HTTP REST request, lookup in a database
+ *           or compute the value. It *must* call the callback to the cache at some
+ *           point in time, either to provide the value, or to provide a
+ *           boost::system::error_code error. If the callback is nor called,
+ *           requests for that key will appear as *frozen* and your program will
+ *           not behave properly. You can store (move) the callback object and
+ *           and return, and call the callback - once - any time later. If you call it
+ *           more than once, the behavior is undefined.
+ *           In your fetch function, you may throw `boost::system::error_code` or
+ *           any exception derived from `std::exception`. Any other exception will cause
+ *           the application to abort.
  *
  *  - asioCtxT The asio io context to use for the cache itself.
  *           Normally a boost::asio::io_context used by your application.
@@ -363,25 +377,59 @@ private:
         fetch(key);
     }
 
+    void resume(value_t& v, const keyT& key, boost::system::error_code e, const valueT& value) {
+        if (std::holds_alternative<Pending>(v)) [[unlikely]] {
+            auto& pending = std::get<Pending>(v);
+            if (pending.invalidated) [[unlikely]] {
+                // We need to re-try the request
+                pending.invalidated = false;
+                fetch(key);
+                return;
+            }
+            pending.complete(e, value);
+        }
+    }
+
+    void resume(Shards::Shard& shrd, const keyT& key, boost::system::error_code e, const valueT& value) {
+        auto& cache = shrd.cache();
+        if (auto it = cache.find(key); it != cache.end()) {
+            auto& v = it->second;
+            resume(it->second, key, e, value);
+        }
+    }
+
+    template <typename T>
+    std::string toString(T&) {
+        return {};
+    }
+
+    std::string toString(const std::string& v) {
+        return v;
+    }
+
+    std::string toString(const std::string_view& v) {
+        return std::string{v};
+    }
+
+    std::string toString(const uint64_t& v) {
+        return std::to_string(v);
+    }
+
+    std::string toString(const int64_t& v) {
+        return std::to_string(v);
+    }
+
     void fetch(const keyT& key) {
         auto& shrd = shard(key);
         shrd.strand().post([key=key, &shrd, this] {
+            try {
             fetch_(key, [key=key, &shrd, this](boost::system::error_code e, valueT value) {
                 shrd.strand().dispatch([this, &shrd, e, key=std::move(key), value=std::move(value)] {
                     auto& cache = shrd.cache();
                     // Only do something if the key exists. It may have been erased since we started the call.
                     if (auto it = cache.find(key); it != cache.end()) {
                         auto& v = it->second;
-                        if (std::holds_alternative<Pending>(v)) [[unlikely]] {
-                            auto& pending = std::get<Pending>(v);
-                            if (pending.invalidated) [[unlikely]] {
-                                // We need to re-try the request
-                                pending.invalidated = false;
-                                fetch(key);
-                                return;
-                            }
-                            pending.complete(e, value);
-                        }
+                        resume(v, key, e, value);
 
                         if (e) [[unlikely]] {
                             // Failed
@@ -392,6 +440,22 @@ private:
                     }
                 });
             });
+            } catch(const boost::system::error_code& ec) {
+                resume(shrd, key, ec, {});
+            } catch(const std::exception& ex) {
+                // TODO: Properly create an error that transports `ex.what()` to the user.
+                auto ec = boost::system::errc::make_error_code(boost::system::errc::interrupted);
+                resume(shrd, key, ec, {});
+            } catch(...) {
+                std::ostringstream estr;
+#ifdef __unix__
+                estr << " of type : " << __cxxabiv1::__cxa_current_exception_type()->name();
+#endif
+                std::cerr << "*** FATAL jgaa::abb::SmartCache: "
+                          << " caught unknown exception " << estr.str()
+                          << " while fetching key: " << toString(key) << std::endl;
+                std::abort();
+            }
         });
     }
 
