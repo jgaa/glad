@@ -25,7 +25,7 @@
  * v Performance-testing
  * - Add expiration
  * v Handle invalidated keys, also for pending requests
- * - add an example
+ * v add an example
  */
 
 namespace jgaa::abb {
