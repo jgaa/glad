@@ -25,7 +25,7 @@ the value is available, any and all pending requests are resumed.
 - A value is only fetched once from the outside. If a thousand almost simultaneous requests for the same key occurs, one request is made to lookup the key using the user-supplied *fetch* functor. When the value (or an error) is available, all the requests pending for that key are resumed (as threads becomes available). 
 - A key can be invalidated at any time, also when there is a fetch operation in progress and one or more requests are waiting for that key. If there are requests waiting, a new fetch operation will be initiated to ensure that the requesters get the correct value.
 - A key can be erased at any time. 
-- Internally, the cache use sharding to allow simultaneous processing of different keys.
+- Internally, the cache use sharding to allow fast, simultaneous processing of different keys.
 
 Examples:
 - [Simple example with C++ 20 coroutine](examples/cxx20-simple.cpp)
