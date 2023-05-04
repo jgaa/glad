@@ -16,7 +16,7 @@ the value is available, any and all pending requests are resumed.
 
 **Features:**
 
-- Uses asio composed completion templates. Fully asynchronous continuations for:
+- Uses asio composed completion templates. Fully asynchronous continuations includes:
     - asio/C++ 20 co-routines
     - asio stackless co-routines
     - asio stackfull co-routines
