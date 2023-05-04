@@ -15,6 +15,7 @@ int main(int argc, char **argv) {
       // Lambda that is called by the cache when it encounters an unknown key.
       [](const std::string &key, auto &&cb) {
 
+          // Simple "database" for the "back-end"
           static const std::unordered_map<std::string, std::string> database = {
             {"Key1", "Dogs"},
             {"Key2", "Cats"}
@@ -43,12 +44,12 @@ int main(int argc, char **argv) {
         value = co_await cache.get("Key2", boost::asio::use_awaitable);
         std::clog << "Got value: " << value << std::endl;
 
-        // Lookup the first key. Now this key one exists in the cache,
+        // Lookup the first key again. This key exists in the cache,
         // and the value is returend immediately.
         value = co_await cache.get("Key1", boost::asio::use_awaitable);
         std::clog << "Got value: " << value << std::endl;
 
-        // Let's see what heppens if we query for a key that don't exist in
+        // Let's see what happens if we query for a key that don't exist in
         // our "database"
         try {
             value = co_await cache.get("unknown-key", boost::asio::use_awaitable);
@@ -67,3 +68,16 @@ int main(int argc, char **argv) {
   ctx.run();
   std::clog << "\"Thread-pool\" ended. Bye." << std::endl;
 }
+
+/* The application should give this output:
+ *
+ * Starting "thread-pool"...
+ * Looking up key Key1 in the database.
+ * Got value: Dogs
+ * Looking up key Key2 in the database.
+ * Got value: Cats
+ * Got value: Dogs
+ * Looking up key unknown-key in the database.
+ * Lookup failed with exception: Interrupted system call [generic:4]
+ * "Thread-pool" ended. Bye.
+ */
