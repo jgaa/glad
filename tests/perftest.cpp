@@ -25,15 +25,17 @@ namespace {
 //using cache_t = Cache<string, string, boost::asio::io_context>;
 const auto valid =  "This is a test"s;
 const auto invalid =  "Wrong value"s;
-const string key = "whatever";
+const auto key = "whatever";
 
 struct Config {
+    bool randomValuesForRead = false;
     size_t xSize = 1000;
     size_t ySize = 10000;
-    size_t failedKeys = 1000;
-    size_t numThreads = std::thread::hardware_concurrency() * 2;
+    size_t failedKeys = 10000;
+    size_t readAmplification = 2;
+    size_t numThreads = min<size_t>(thread::hardware_concurrency(), 8);
     size_t numShards = 7;
-    std::string reportPath;
+    string reportPath;
 };
 
 Config config;
@@ -59,7 +61,11 @@ public:
 } // ns
 
 
-void perftests() {
+auto perftests() {
+    random_device rd;
+    mt19937 mt(rd());
+    mutex mtx;
+
     auto get_key = [](size_t x, size_t y) {
         assert(x < config.xSize);
         assert(y < config.ySize);
@@ -94,7 +100,7 @@ void perftests() {
         });
     }
 
-    Timer runTimer;
+    Timer elapsed;
     // Populate the cache
     clog << "Populating cache" << endl;
     {
@@ -119,30 +125,31 @@ void perftests() {
         }
     }
 
-    // Pull data
-    random_device rd;
-    mt19937 mt(rd());
-    mutex mtx;
+    const auto writeSeconds = elapsed.elapsedSeconds();
 
     clog << "Initiating pulling data" << endl;
+    Timer elapsedDuringRead;
     for(auto x = 0; x < config.xSize; ++x) {
-        boost::asio::co_spawn(ctx, [x, &ctx, &cache, &mt, &get_key, &get_value]() mutable -> boost::asio::awaitable<void> {
-                uniform_int_distribution<size_t> xdist(0, config.xSize - 1);
-                uniform_int_distribution<size_t> ydist(0, config.ySize - 1);
-                for(auto y = 0; y < config.ySize; ++y) {
-                    const auto xx =  xdist(mt);
-                    const auto yy = ydist(mt);
-                    const auto key = get_key(xx, yy);
-                    const auto value = co_await cache.get(key, boost::asio::use_awaitable);
-                    const auto expected = get_value(key);
-                }
-            }, boost::asio::detached);
+        for(auto a = 0; a < config.readAmplification; ++a) {
+            boost::asio::co_spawn(ctx, [x, &ctx, &cache, &mt, &get_key, &get_value]() mutable -> boost::asio::awaitable<void> {
+                    uniform_int_distribution<size_t> xdist(0, config.xSize - 1);
+                    uniform_int_distribution<size_t> ydist(0, config.ySize - 1);
+                    for(auto y = 0; y < config.ySize; ++y) {
+                        const auto xx = config.randomValuesForRead ? xdist(mt) : x;
+                        const auto yy = config.randomValuesForRead ? ydist(mt) : y;
+                        const auto key = get_key(xx, yy);
+                        const auto value = co_await cache.get(key, boost::asio::use_awaitable);
+                        const auto expected = get_value(key);
+                    }
+                }, boost::asio::detached);
+        }
     }
 
 
     for(auto i = 0; i < config.failedKeys; ++i) {
-        boost::asio::co_spawn(ctx, [i, &ctx, &cache]() mutable -> boost::asio::awaitable<void> {
-            co_await cache.get(invalid, boost::asio::use_awaitable);
+        uniform_int_distribution<size_t> dist(0, numeric_limits<size_t>::max());
+        boost::asio::co_spawn(ctx, [i, &ctx, &cache, &mt, &dist]() mutable -> boost::asio::awaitable<void> {
+                co_await cache.get(invalid + to_string(dist(mt)), boost::asio::use_awaitable);
         }, boost::asio::detached);
     }
 
@@ -154,16 +161,21 @@ void perftests() {
         t.join();
     }
 
-    clog << "Spent " << runTimer.elapsedSeconds() << " seconds doing test stuff..." << endl;
+    const auto readSeconds = elapsedDuringRead.elapsedSeconds();
+
+    return make_tuple(elapsed.elapsedSeconds(), writeSeconds, readSeconds);
 }
 
 int main(int argc, char **argv) {
     try {
         locale loc("");
     } catch (const std::exception& e) {
-        std::cout << "Locales in Linux are fundamentally broken. Never worked. Never will. Overriding the current mess with LC_ALL=C" << endl;
+        std::clog << "Locales in Linux are fundamentally broken. Never worked. Never will. Overriding the current mess with LC_ALL=C" << endl;
         setenv("LC_ALL", "C", 1);
     }
+
+    //clog.imbue(std::locale("en_US.UTF-8"));
+    clog.imbue(std::locale(""));
 
     namespace po = boost::program_options;
     po::options_description general("Options");
@@ -181,6 +193,12 @@ int main(int argc, char **argv) {
         ("y-size",
          po::value<size_t>(&config.ySize)->default_value(config.ySize),
          "Number of requests in each coroutine")
+        ("read-amplification-factor, a",
+         po::value<size_t>(&config.readAmplification)->default_value(config.readAmplification),
+         "Read amplification facter (how many times each existing key is read)")
+        ("read-random-keys,",
+         po::value<bool>(&config.randomValuesForRead)->default_value(config.randomValuesForRead),
+         "Read existing keys in random order")
         ("report-path,r",
          po::value<string>(&config.reportPath)->default_value(config.reportPath),
          "CSV file where to append the results")
@@ -193,24 +211,36 @@ int main(int argc, char **argv) {
     po::notify(vm);
 
     if (vm.count("help")) {
-        cout << filesystem::path(argv[0]).stem().string() << " [options]";
-        cout << cmdline_options << endl;
+        clog << filesystem::path(argv[0]).stem().string() << " [options]";
+        clog << cmdline_options << endl;
         return -1;
     }
 
     const auto numObjects = config.xSize * config.ySize;
+    const auto readObjects = numObjects * config.readAmplification;
 
-    cout << "Starting up (using jgaa::abb " << ABB_VERSION_STR << ", boost " << BOOST_LIB_VERSION << ")." << endl
+    clog << "Starting up (using jgaa::abb " << ABB_VERSION_STR << ", boost " << BOOST_LIB_VERSION << ")." << endl
          << "Using " << config.numThreads << " threads and " << config.numShards << " shards." << endl
          << "I will create " << numObjects << " objects and then read "
-         << numObjects << " existing objects using random keys and "
+         << readObjects << " existing objects using "
+         << (config.randomValuesForRead ? "random" : "sequential") << " keys and "
          << config.failedKeys << " failed keys (errors on fetch). " << endl;
 
-    perftests();
+    const auto [elapsedSeconds, writeSeconds, readSeconds] = perftests();
+
+    clog << fixed << setprecision(5)
+         << "Spent " << elapsedSeconds << " seconds doing test stuff, including "
+         << writeSeconds << " seconds for writes ("
+         << (numObjects/ writeSeconds) << " writes/sec) and "
+         << readSeconds << " seconds for reads ("
+         << (readObjects/ readSeconds) << " reads/sec)"
+         << endl;
+
+
     rusage ru = {};
     getrusage(RUSAGE_SELF, &ru);
 
-    cout << "cputime=" << (ru.ru_utime.tv_sec + ru.ru_utime.tv_usec / 1000000.0)
+    clog << "cputime=" << (ru.ru_utime.tv_sec + ru.ru_utime.tv_usec / 1000000.0)
          << ", system=" << (ru.ru_stime.tv_sec + ru.ru_stime.tv_usec / 1000000.0)
          << ", minflt=" << ru.ru_minflt
          << ", majflt=" << ru.ru_majflt
@@ -227,26 +257,34 @@ int main(int argc, char **argv) {
     if (!config.reportPath.empty()) {
         if (!filesystem::is_regular_file(config.reportPath)) {
             ofstream hdr{config.reportPath};
-            hdr << "Approach, cputime, system, minflt, majflt, nswap, "
-                << "nsignals, nvcsw, nivcsw, maxrss, ixrss, idrss, isrss" << endl;
+            hdr << "Threads; shards; writes; reads; faildReads; elapsedTime; writeTime; readTime; "
+                << "cputime; system; minflt; majflt; nswap; "
+                << "nsignals; nvcsw; nivcsw; maxrss; ixrss; idrss; isrss" << endl;
         }
 
         ofstream data{config.reportPath, ::ios_base::app};
-        data << "default"
-             << "," << (ru.ru_utime.tv_sec + ru.ru_utime.tv_usec / 1000000.0)
-             << "," << (ru.ru_stime.tv_sec + ru.ru_stime.tv_usec / 1000000.0)
-             << "," << ru.ru_minflt
-             << "," << ru.ru_majflt
-             << "," << ru.ru_nswap
-             << "," << ru.ru_nsignals
-             << "," << ru.ru_nvcsw
-             << "," << ru.ru_nivcsw
-             << "," << ru.ru_maxrss
-             << "," << ru.ru_ixrss
-             << "," << ru.ru_idrss
-             << "," << ru.ru_isrss
+        data << config.numThreads
+                 << ";" << config.numShards
+                 << ";" << numObjects
+                 << ";" << readObjects
+                 << ";" << config.failedKeys
+                 << ";" << elapsedSeconds
+                 << ";" << writeSeconds
+                 << ";" << readSeconds
+                 << ";" << (ru.ru_utime.tv_sec + ru.ru_utime.tv_usec / 1000000.0)
+                 << ";" << (ru.ru_stime.tv_sec + ru.ru_stime.tv_usec / 1000000.0)
+                 << ";" << ru.ru_minflt
+                 << ";" << ru.ru_majflt
+                 << ";" << ru.ru_nswap
+                 << ";" << ru.ru_nsignals
+                 << ";" << ru.ru_nvcsw
+                 << ";" << ru.ru_nivcsw
+                 << ";" << ru.ru_maxrss
+                 << ";" << ru.ru_ixrss
+                 << ";" << ru.ru_idrss
+                 << ";" << ru.ru_isrss
              << endl;
     }
 
-    cout << "Done" << endl;
+    clog << "Done" << endl;
 }
