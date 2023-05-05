@@ -28,9 +28,7 @@ int main(int argc, char **argv) {
       ctx);
 
   // Create an asio/C++20 co-routine
-  boost::asio::co_spawn(
-      ctx,
-      [&]() mutable -> boost::asio::awaitable<void> {
+  boost::asio::co_spawn(ctx, [&]() mutable -> boost::asio::awaitable<void> {
         // Inside the co-routine
 
         // Lookup a value in the cache. This will call our lambda above,
