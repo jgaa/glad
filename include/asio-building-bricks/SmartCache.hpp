@@ -24,6 +24,8 @@
  * v Add sharing for keys, based on hash (optional) for faster access on machines with many cores
  * v Performance-testing
  * - Add expiration
+ * - Add thumbstone with expiration
+ * - Add altenative thread-safe method, using mutexes in stead of a strand
  * v Handle invalidated keys, also for pending requests
  * v add an example
  */
@@ -75,9 +77,9 @@ template <typename keyT, typename valueT, typename asioCtxT, typename fetchT, ty
 class SmartCacheT {
 
     struct SelfBase {
+        static const valueT emptyValue_;
         virtual ~SelfBase() = default;
-        virtual void complete(const std::any& res) = 0;
-        virtual void fail(const boost::system::error_code& ec) = 0;
+        virtual void complete(const boost::system::error_code& ec, const valueT& value = emptyValue_) = 0;
     };
 
     // Storage for completion-handlers.
@@ -85,12 +87,8 @@ class SmartCacheT {
     struct Self : public SelfBase {
         Self(SelfT&& self) : self_{std::move(self)} {}
 
-        void complete(const std::any& res) override {
-            self_.complete({}, std::any_cast<VarT>(res));
-        }
-
-        void fail(const boost::system::error_code& ec) override {
-            self_.complete(ec, {});
+        void complete(const boost::system::error_code& ec, const valueT& value) override {
+            self_.complete(ec, value);
         }
 
     private:
@@ -130,27 +128,19 @@ class SmartCacheT {
             return *this;
         }
 
-        void complete(const boost::system::error_code& e, std::any value) {
+        void complete(const boost::system::error_code& e, const valueT& value) {
             if (std::holds_alternative<self_t>(requests_pending)) {
                 auto& pending = std::get<self_t>(requests_pending);
                 assert(pending);
                 if (pending) {
-                    if (e) {
-                        pending->fail(e);
-                    } else {
-                        pending->complete(value);
-                    }
+                    pending->complete(e, value);
                 }
                 pending.reset();
             } else if (std::holds_alternative<list_t>(requests_pending)) {
                 auto& list = std::get<list_t>(requests_pending);
                 for(auto& self : list) {
                     assert(self);
-                    if (e) {
-                        self->fail(e);
-                    } else {
-                        self->complete(value);
-                    }
+                    self->complete(e, value);
                 }
                 list.clear();
             } else [[unlikely]] {
@@ -392,7 +382,7 @@ private:
         }
     }
 
-    void resume(Shards::Shard& shrd, const keyT& key, boost::system::error_code e, const valueT& value) {
+    void resume(typename Shards::Shard& shrd, const keyT& key, boost::system::error_code e, const valueT& value) {
         auto& cache = shrd.cache();
         if (auto it = cache.find(key); it != cache.end()) {
             auto& v = it->second;
