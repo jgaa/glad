@@ -10,7 +10,7 @@ add_executable(cxx20-simple
 set_property(TARGET cxx20-simple PROPERTY CXX_STANDARD 20)
 
 add_dependencies(cxx20-simple
-    asio-building-bricks
+    glad
     )
 
 target_include_directories(cxx20-simple
@@ -23,7 +23,7 @@ target_include_directories(cxx20-simple
     )
 
 target_link_libraries(cxx20-simple
-    asio-building-bricks
+    glad
     ${Boost_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
 )

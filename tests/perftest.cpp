@@ -13,10 +13,10 @@
 #include <boost/program_options.hpp>
 
 
-#include "asio-building-bricks/AsyncCache.hpp"
-#include "asio-building-bricks/config.h"
+#include "glad/AsyncCache.hpp"
+#include "glad/config.h"
 
-using namespace jgaa::abb;
+using namespace jgaa::glad;
 using namespace std;
 using namespace std::string_literals;
 
@@ -219,7 +219,7 @@ int main(int argc, char **argv) {
     const auto numObjects = config.xSize * config.ySize;
     const auto readObjects = numObjects * config.readAmplification;
 
-    clog << "Starting up (using jgaa::abb " << ABB_VERSION_STR << ", boost " << BOOST_LIB_VERSION << ")." << endl
+    clog << "Starting up (using jgaa::glad " << ABB_VERSION_STR << ", boost " << BOOST_LIB_VERSION << ")." << endl
          << "Using " << config.numThreads << " threads and " << config.numShards << " shards." << endl
          << "I will create " << numObjects << " objects and then read "
          << readObjects << " existing objects using "

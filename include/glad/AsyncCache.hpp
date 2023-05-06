@@ -16,7 +16,7 @@
 #include <boost/leaf.hpp>
 #include <boost/asio.hpp>
 
-#include "asio-building-bricks/config.h"
+#include "glad/config.h"
 
 /* Todo
  *
@@ -30,7 +30,7 @@
  * v add an example
  */
 
-namespace jgaa::abb {
+namespace jgaa::glad {
 
 /*! Generic cache with asio composed completion
  *
@@ -426,7 +426,7 @@ private:
                 // std::ostream& operator << (std::ostream&, const the-type-of-key&) in the "std or jgaa" namespace
                 // and include the declaration of that before including this header.
 
-                std::cerr << "*** FATAL jgaa::abb::AsyncCache: "
+                std::cerr << "*** FATAL jgaa::glad::AsyncCache: "
                           << " caught unknown exception " << estr.str()
                           << " while fetching key: " << key << std::endl;
                 std::abort();

@@ -1,13 +1,13 @@
 cmake_minimum_required(VERSION 3.24)
 
 if (NOT DEFINED ABB_VERSION)
-    set(ABB_VERSION 0.0.1)
+    set(ABB_VERSION 0.1.0)
 endif()
 set(ABB_VERSION_STR \"${ABB_VERSION}\")
 
-project(asio-building-bricks
+project(glad
     DESCRIPTION "A header-only library with some useful algorithms for asio"
-    HOMEPAGE_URL https://github.com/jgaa/asio-building-bricks
+    HOMEPAGE_URL https://github.com/jgaa/glad
     VERSION ${ABB_VERSION}
     LANGUAGES CXX)
 set(ABB_ROOT ${CMAKE_CURRENT_SOURCE_DIR})
@@ -51,7 +51,7 @@ find_package(Boost ${USE_BOOST_VERSION} REQUIRED COMPONENTS
 include(GNUInstallDirs)
 
 add_library(${PROJECT_NAME} INTERFACE
-    #include/abb/AsyncCache.hpp
+    #include/glad/AsyncCache.hpp
 )
 
 target_include_directories( ${PROJECT_NAME} INTERFACE

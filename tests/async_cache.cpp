@@ -4,14 +4,14 @@
 #include <list>
 
 #include "gtest/gtest.h"
-#include "asio-building-bricks/AsyncCache.hpp"
+#include "glad/AsyncCache.hpp"
 #include <boost/asio/spawn.hpp>
 #include <boost/asio/co_spawn.hpp>
 #include <boost/chrono.hpp>
 #include <boost/functional/hash.hpp>
 
 
-using namespace jgaa::abb;
+using namespace jgaa::glad;
 using namespace std;
 using namespace std::string_literals;
 
@@ -64,7 +64,7 @@ TEST(Cache, testInvalidExceptionInFetch) {
 
     cache.get(key, [](boost::system::error_code /*e*/, const string& /*rv*/){});
 
-    ASSERT_DEATH(ctx.run(), "FATAL jgaa::abb::AsyncCache");
+    ASSERT_DEATH(ctx.run(), "FATAL jgaa::glad::AsyncCache");
 }
 
 

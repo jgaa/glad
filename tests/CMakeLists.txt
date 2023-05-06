@@ -10,7 +10,7 @@ add_executable(async_cache
 set_property(TARGET async_cache PROPERTY CXX_STANDARD 20)
 
 add_dependencies( async_cache
-    asio-building-bricks
+    glad
     ${DEPENDS_GTEST}
     )
 
@@ -25,7 +25,7 @@ target_include_directories(async_cache
 
 target_link_libraries(async_cache
     ${GTEST_LIBRARIES}
-    asio-building-bricks
+    glad
     ${Boost_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
 )
@@ -42,7 +42,7 @@ add_executable(perftest
 set_property(TARGET perftest PROPERTY CXX_STANDARD 20)
 
 add_dependencies( perftest
-    asio-building-bricks
+    glad
     ${DEPENDS_GTEST}
     )
 
@@ -57,7 +57,7 @@ target_include_directories(perftest
 
 target_link_libraries(perftest
     ${GTEST_LIBRARIES}
-    asio-building-bricks
+    glad
     ${Boost_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
 )

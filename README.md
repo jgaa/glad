@@ -35,12 +35,12 @@ The performance can certainly be improved on. But at the moment, it's fast enoug
 
 *perftest*, ran on my workstation using the default settings.
 ```
-Starting up (using jgaa::abb 0.0.1, boost 1_81).
+Starting up (using jgaa::glad 0.1.0, boost 1_81).
 Using 8 threads and 7 shards.
 I will create 10,000,000 objects and then read 20,000,000 existing objects using sequential keys and 10,000 failed keys (errors on fetch).
 ...
-Spent 12.54817 seconds doing test stuff, including 6.41176 seconds for writes (1,559,634.25467 writes/sec) and 6.13639 seconds for reads (3,259,245.83764 reads/sec)
-cputime=76.13393, system=6.07069, minflt=379,539, majflt=2, nswap=0, nsignals=0, nvcsw=495,791, nivcsw=1,573, maxrss=3,250,796, ixrss=0, idrss=0, isrss=0
+Spent 12.74809 seconds doing test stuff, including 6.45128 seconds for writes (1,550,081.11030 writes/sec) and 6.29680 seconds for reads (3,176,218.20089 reads/sec)
+cputime=75.97142, system=6.10435, minflt=381,083, majflt=2, nswap=0, nsignals=0, nvcsw=511,708, nivcsw=1,035, maxrss=3,251,324, ixrss=0, idrss=0, isrss=0
 Done
 ```
 
