@@ -97,7 +97,7 @@ class AsyncCacheT {
 
     template <typename selfT>
     static auto make_self(selfT self) {
-        return make_unique<Self<selfT, valueT>>(std::move(self));
+        return std::make_unique<Self<selfT, valueT>>(std::move(self));
     }
 
     // Data regarding pending requests
