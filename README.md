@@ -4,6 +4,8 @@ My intent is to create a handful of useful algorithms / building bricks built on
 
 The first one is a smart cache designed for use-cases like caching API-keys/RBAC data in web-services. 
 
+The project is named after a little dog I found in my garden one evening. Despite a very touch and difficult start of his life, he has always been very very happy. *Glad* is the Norwegian word for happy ;)
+
 ## SmartCache
 
 The cache is a trivial key/value store. If an item is not found,
