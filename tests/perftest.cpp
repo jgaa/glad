@@ -219,7 +219,7 @@ int main(int argc, char **argv) {
     const auto numObjects = config.xSize * config.ySize;
     const auto readObjects = numObjects * config.readAmplification;
 
-    clog << "Starting up (using jgaa::glad " << ABB_VERSION_STR << ", boost " << BOOST_LIB_VERSION << ")." << endl
+    clog << "Starting up (using jgaa::glad " << GLAD_VERSION_STR << ", boost " << BOOST_LIB_VERSION << ")." << endl
          << "Using " << config.numThreads << " threads and " << config.numShards << " shards." << endl
          << "I will create " << numObjects << " objects and then read "
          << readObjects << " existing objects using "

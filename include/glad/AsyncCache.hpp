@@ -69,8 +69,8 @@ namespace jgaa::glad {
  *  - hashT  Hash function to use for the sharing based on keys.
  */
 
-#ifndef JGAA_ABB_MAP_TYPE
-#   define JGAA_ABB_MAP_TYPE boost::unordered_flat_map
+#ifndef JGAA_GLAD_MAP_TYPE
+#   define JGAA_GLAD_MAP_TYPE boost::unordered_flat_map
 #endif
 
 template <typename keyT, typename valueT, typename asioCtxT, typename fetchT, typename hashT=std::hash<keyT>>
@@ -154,7 +154,7 @@ class AsyncCacheT {
     };
 
     using value_t = std::variant<valueT, Pending>;
-    using cache_t = JGAA_ABB_MAP_TYPE<keyT, value_t>;
+    using cache_t = JGAA_GLAD_MAP_TYPE<keyT, value_t>;
 
     // Use "sharing" based on a hash from the key
     // This allows up to 'numShards' number of lookups or callbacks to be processed in parallel,

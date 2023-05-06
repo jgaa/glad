@@ -3,6 +3,6 @@
 /* Edit the template file, not the generated header-file.
 */
 
-#cmakedefine ABB_VERSION ${ABB_VERSION}
-#cmakedefine ABB_VERSION_STR ${ABB_VERSION_STR}
-#cmakedefine JGAA_ABB_MAP_TYPE ${JGAA_ABB_MAP_TYPE}
+#cmakedefine GLAD_VERSION ${GLAD_VERSION}
+#cmakedefine GLAD_VERSION_STR ${GLAD_VERSION_STR}
+#cmakedefine JGAA_GLAD_MAP_TYPE ${JGAA_GLAD_MAP_TYPE}
