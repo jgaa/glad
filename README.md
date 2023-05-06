@@ -8,15 +8,15 @@ The project is named after a little dog I found in my garden one evening. Despit
 
 ![Glad the dog](glad-the-dog/images/glad01.jpg)
 
-## SmartCache
+## AsyncCache
 
 The cache is a trivial key/value store. If an item is not found,
 a fetch method (supplied by you) are called to asynchronously get the
-value. The request is paused, and the thread freed to do other work.
+value. The request is paused, and the thread freed up to do other work.
 
 If more requests comes in for a key that is in the process of being looked up,
-they are added to a list of pending requests. A key is only fetched once. When
-the value is available, any and all pending requests are resumed.
+they are added to a list of pending requests. When the value is available,
+any and all pending requests are resumed.
 
 **Features:**
 - Uses asio composed completion templates. Fully asynchronous continuations includes:
