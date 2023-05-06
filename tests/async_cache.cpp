@@ -68,7 +68,7 @@ TEST(Cache, testInvalidExceptionInFetch) {
 }
 
 
-TEST(Cache, ContructWithArgs) {
+TEST(Cache, ConstructWithArgs) {
 
     boost::asio::io_context ctx;
     auto cache = make_async_cache<string, string>([this](const string& key, auto cb) {
@@ -78,6 +78,22 @@ TEST(Cache, ContructWithArgs) {
     cache.get(key, [](boost::system::error_code e, const string& rv) {
         EXPECT_FALSE(e);
         EXPECT_EQ(rv, valid);
+    });
+
+    ctx.run();
+}
+
+TEST(Cache, ConstructFromTypename) {
+
+    boost::asio::io_context ctx;
+
+    ::jgaa::glad::AsyncCache<string, shared_ptr<string>> cache([](const auto& key, const auto& cb){
+        cb({}, make_shared<string>(valid));
+    }, ctx);
+
+    cache.get(key, [](const auto& err, const auto& value) {
+        EXPECT_FALSE(err);
+        EXPECT_EQ(*value, valid);
     });
 
     ctx.run();
