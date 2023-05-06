@@ -2,9 +2,9 @@
 
 My intention is to create and implement a handful of useful algorithms in C++ 20, primarily for use in my own applications. But if you find something useful here, feel free to use it and to contribute suggestions and pull requests.
 
-The first one is a asynchronous "smart" cache designed for use-cases like caching API-keys/RBAC data in web-services. 
+The first one is an asynchronous "smart" cache designed for use-cases like caching API-keys/RBAC data in web-services. 
 
-The project is named after a tiny, very ill puppy one of my dogs found in my garden late one evening. Despite a touch and difficult start of his life, he has always been very very happy. *Glad* is the Norwegian word for happy ;)
+The project is named after a tiny, very ill puppy one of my dogs found in my garden late one evening. Despite a tough and difficult start of his life, he has always been very very happy. *Glad* is the Norwegian word for happy ;)
 
 ![Glad the dog](glad-the-dog/images/glad02.jpg)
 (Glad, here with his big friend Ares)
