@@ -1,6 +1,6 @@
 
 #include <iostream>
-#include "asio-building-bricks/SmartCache.hpp"
+#include "asio-building-bricks/AsyncCache.hpp"
 #include <boost/asio/co_spawn.hpp>
 
 int main(int argc, char **argv) {
@@ -10,7 +10,7 @@ int main(int argc, char **argv) {
   boost::asio::io_context ctx;
 
   // Create an instance of a cache with std::string as key and value types.
-  auto cache = jgaa::abb::make_cache<std::string, std::string>(
+  auto cache = jgaa::abb::make_async_cache<std::string, std::string>(
 
       // Lambda that is called by the cache when it encounters an unknown key.
       [](const std::string &key, auto &&cb) {

@@ -1,20 +1,20 @@
 project(unittests LANGUAGES CXX)
 
 
-#######  smart_cache
+#######  async_cache
 
-add_executable(smart_cache
-    smart_cache.cpp
+add_executable(async_cache
+    async_cache.cpp
     )
 
-set_property(TARGET smart_cache PROPERTY CXX_STANDARD 20)
+set_property(TARGET async_cache PROPERTY CXX_STANDARD 20)
 
-add_dependencies( smart_cache
+add_dependencies( async_cache
     asio-building-bricks
     ${DEPENDS_GTEST}
     )
 
-target_include_directories(smart_cache
+target_include_directories(async_cache
     PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}
     $<BUILD_INTERFACE:${NSBLAST_ROOT}/include
@@ -23,14 +23,14 @@ target_include_directories(smart_cache
     $<BUILD_INTERFACE: ${CMAKE_BINARY_DIR}/generated-include
     )
 
-target_link_libraries(smart_cache
+target_link_libraries(async_cache
     ${GTEST_LIBRARIES}
     asio-building-bricks
     ${Boost_LIBRARIES}
     ${CMAKE_THREAD_LIBS_INIT}
 )
 
-add_test(NAME smart_cache COMMAND  smart_cache)
+add_test(NAME async_cache COMMAND  async_cache)
 
 
 #######  perftest

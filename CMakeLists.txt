@@ -51,7 +51,7 @@ find_package(Boost ${USE_BOOST_VERSION} REQUIRED COMPONENTS
 include(GNUInstallDirs)
 
 add_library(${PROJECT_NAME} INTERFACE
-    #include/abb/SmartCache.hpp
+    #include/abb/AsyncCache.hpp
 )
 
 target_include_directories( ${PROJECT_NAME} INTERFACE

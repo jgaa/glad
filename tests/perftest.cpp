@@ -13,7 +13,7 @@
 #include <boost/program_options.hpp>
 
 
-#include "asio-building-bricks/SmartCache.hpp"
+#include "asio-building-bricks/AsyncCache.hpp"
 #include "asio-building-bricks/config.h"
 
 using namespace jgaa::abb;
@@ -77,8 +77,8 @@ auto perftests() {
     };
 
     boost::asio::io_context ctx;
-    //SmartCache<string, string, decltype(ctx)> cache([&get_value](const string& key, auto && cb) {
-    auto cache = make_cache<string, shared_ptr<string>>([&get_value](const string& key, auto && cb) {
+    //AsyncCache<string, string, decltype(ctx)> cache([&get_value](const string& key, auto && cb) {
+    auto cache = make_async_cache<string, shared_ptr<string>>([&get_value](const string& key, auto && cb) {
         if (key == invalid) {
             static const auto err = boost::system::errc::make_error_code(boost::system::errc::bad_message);
             cb(err, {});

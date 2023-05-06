@@ -74,7 +74,7 @@ namespace jgaa::abb {
 #endif
 
 template <typename keyT, typename valueT, typename asioCtxT, typename fetchT, typename hashT=std::hash<keyT>>
-class SmartCacheT {
+class AsyncCacheT {
 
     struct SelfBase {
         static const valueT emptyValue_;
@@ -215,7 +215,7 @@ public:
      *               in your use-case).
      *  \param hash Hash functor for your key-type.
      */
-    SmartCacheT(fetch_t fetch, asioCtxT& asioCtx, size_t numShards=7, hashT && hash = {})
+    AsyncCacheT(fetch_t fetch, asioCtxT& asioCtx, size_t numShards=7, hashT && hash = {})
         : asioCtx_{asioCtx}
         , hash_{std::move(hash)}
         , shards_{numShards, asioCtx, hash_}
@@ -224,12 +224,12 @@ public:
     {
     }
 
-    SmartCacheT() = delete;
-    SmartCacheT(const SmartCacheT&) = delete;
-    SmartCacheT(SmartCacheT &&) = default;
+    AsyncCacheT() = delete;
+    AsyncCacheT(const AsyncCacheT&) = delete;
+    AsyncCacheT(AsyncCacheT &&) = default;
 
-    SmartCacheT& operator = (const SmartCacheT&) = delete;
-    SmartCacheT& operator = (SmartCacheT &&) = default;
+    AsyncCacheT& operator = (const AsyncCacheT&) = delete;
+    AsyncCacheT& operator = (AsyncCacheT &&) = default;
 
     /*! Asynchronously get a value from the cache.
      *
@@ -423,10 +423,10 @@ private:
                 estr << " of type : " << __cxxabiv1::__cxa_current_exception_type()->name();
 #endif
                 // If your compiler complains about "<< key", just add a
-                // std::ostream& operator << (std::ostream&, const the-type-of-key&) in the "std" namespace
+                // std::ostream& operator << (std::ostream&, const the-type-of-key&) in the "std or jgaa" namespace
                 // and include the declaration of that before including this header.
 
-                std::cerr << "*** FATAL jgaa::abb::SmartCache: "
+                std::cerr << "*** FATAL jgaa::abb::AsyncCache: "
                           << " caught unknown exception " << estr.str()
                           << " while fetching key: " << key << std::endl;
                 std::abort();
@@ -445,7 +445,7 @@ private:
 };
 
 
-/*! Construct a SmartCache
+/*! Construct a AsyncCache
  *
  *  \param fetch A functor to fetch the value if it's not found in the cache.
  *  \param asioCtx asioCtx or io service to use, for example an instance of
@@ -453,26 +453,26 @@ private:
  *  \param numShards Number of internal shartds for parallelism.
  *  \param hashT Hash funtion that works woth the key's type.
  *
- *  \return A SmartCache instance
+ *  \return A AsyncCache instance
  */
 template <typename keyT, typename valueT, typename asioCtxT ,
           typename fetchT, typename hashT=std::hash<keyT>>
-auto make_cache(fetchT fetch,
+auto make_async_cache(fetchT fetch,
                 asioCtxT& asioCtx,
                 size_t numShards =7,
                 hashT && hash={}) {
-    return SmartCacheT<keyT, valueT, asioCtxT, fetchT, hashT>(fetch, asioCtx, numShards, std::move(hash));
+    return AsyncCacheT<keyT, valueT, asioCtxT, fetchT, hashT>(fetch, asioCtx, numShards, std::move(hash));
 }
 
 /*! Typename that can be easily used in class definitions
  *
- *  For example: jgaa:abb::SmartCache<std::string, std::shared_ptr<SomeObject>> cache_;
+ *  For example: jgaa:abb::AsyncCache<std::string, std::shared_ptr<SomeObject>> cache_;
  */
 template <typename keyT, typename valueT,
          typename asioCtxT=boost::asio::io_context,
          typename fetchCbT=std::function<void(boost::system::error_code e, valueT value)>,
          typename fetchT=std::function<void(const keyT&, fetchCbT &&)>,
          typename hashT=std::hash<keyT>>
-using SmartCache = SmartCacheT<keyT, valueT, asioCtxT, fetchT, hashT>;
+using AsyncCache = AsyncCacheT<keyT, valueT, asioCtxT, fetchT, hashT>;
 
 } // ns
