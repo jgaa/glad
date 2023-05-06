@@ -6,6 +6,8 @@ The first one is a smart cache designed for use-cases like caching API-keys/RBAC
 
 The project is named after a little dog I found in my garden one evening. Despite a very touch and difficult start of his life, he has always been very very happy. *Glad* is the Norwegian word for happy ;)
 
+![Glad the dog](glad-the-dog/images/glad01.jpg)
+
 ## SmartCache
 
 The cache is a trivial key/value store. If an item is not found,
