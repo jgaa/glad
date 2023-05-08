@@ -47,3 +47,5 @@ Done
 
 Examples:
 - [Simple example with C++ 20 coroutine](examples/cxx20-simple.cpp)
+
+Blog-post: [A smart asynchronous object-cache in C++](https://lastviking.eu/async_cache.html)
