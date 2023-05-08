@@ -34,14 +34,14 @@ any and all pending requests are resumed.
 **Performance**
 The performance can certainly be improved on. But at the moment, it's fast enough for my use.
 
-*perftest*, ran on my workstation using the default settings.
+*perftest*, ran on my aging gaming laptop using the default settings.
 ```
-Starting up (using jgaa::glad 0.1.0, boost 1_81).
+Starting up (using jgaa::glad 0.1.0, boost 1_82).
 Using 8 threads and 7 shards.
-I will create 10,000,000 objects and then read 20,000,000 existing objects using sequential keys and 10,000 failed keys (errors on fetch).
+I will create 10,000,000 objects and then read 20,000,000 existing objects using sequential keys and 10,000 failed keys (errors on fetch). 
 ...
-Spent 12.74809 seconds doing test stuff, including 6.45128 seconds for writes (1,550,081.11030 writes/sec) and 6.29680 seconds for reads (3,176,218.20089 reads/sec)
-cputime=75.97142, system=6.10435, minflt=381,083, majflt=2, nswap=0, nsignals=0, nvcsw=511,708, nivcsw=1,035, maxrss=3,251,324, ixrss=0, idrss=0, isrss=0
+Spent 7.91382 seconds doing test stuff, including 4.33107 seconds for writes (2,308,900.62839 writes/sec) and 3.58275 seconds for reads (5,582,310.94078 reads/sec)
+cputime=46.24357, system=5.56283, minflt=1,271,752, majflt=5, nswap=0, nsignals=0, nvcsw=560,072, nivcsw=256, maxrss=3,248,528, ixrss=0, idrss=0, isrss=0
 Done
 ```
 
