@@ -13,7 +13,7 @@
  * the "leader" DNS server is updated, "Let's Encrypt" may query one of
  * replicas before the change is replicated to it. The leader will therefore
  * use this class to allow clients to wait until a change is replicated
- * to all the replicas until the API request it returns.
+ * to all the replicas until the API request returns.
  */
 
 #include <iostream>
