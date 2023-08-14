@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 if (NOT DEFINED GLAD_VERSION)
-    set(GLAD_VERSION 0.1.0)
+    set(GLAD_VERSION 0.2.0)
 endif()
 set(GLAD_VERSION_STR \"${GLAD_VERSION}\")
 
