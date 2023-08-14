@@ -49,3 +49,56 @@ Examples:
 - [Simple example with C++ 20 coroutine](examples/cxx20-simple.cpp)
 
 Blog-post: [A smart asynchronous object-cache in C++](https://lastviking.eu/async_cache.html)
+
+
+## AsyncWaitFor
+
+This class allow any number of clients to wait on it for some condition to become true.
+
+The condition is user defined through a static lambda expression.
+
+It expose two interesting methods:
+
+```C++
+     /*! Evaluate all waiting items against the condition.
+     *
+     *  Any items that match the condition, using the
+     *  static `validateT` template functor will be
+     *  resumed.
+     *
+     *  The method returns immediately.
+     */
+    template <typename cT>
+    void onChange(const cT& condition) {
+```
+
+```C++
+    /*! Async wait for something to complete.
+     *
+     *  \param what A variable that states what we are waiting for.
+     *  \param duration How long we are willing to wait before we time out.
+     *  \param token asio continuation.
+     */
+    template <typename CompletionToken, typename Rep, typename Period>
+    auto wait(T what, std::chrono::duration<Rep, Period> duration, CompletionToken&& token) {
+```
+
+The class is quite generic and can be used for many things.
+
+One use-case is to allow callers to wait for something like an incremental
+counter to reach a threshold, where each caller specify their own threshold value.
+The value for a client does not need to be unique.
+
+**Features:**
+- Uses asio composed completion templates. Fully asynchronous continuations includes:
+    - asio/C++ 20 co-routines
+    - asio stackless co-routines
+    - asio stackfull co-routines
+    - callbacks
+    - futures
+- User defined type to wait for.
+- User-defined functor to evaluate when a condition is satisfied.
+
+Examples:
+- [Simple "counter" example with C++ 20 coroutine](examples/wait-for-counter.cpp)
+
