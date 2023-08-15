@@ -119,6 +119,9 @@ public:
     AsyncWaitFor(asioCtxT& ctx)
         : asioCtx_{ctx} {}
 
+    AsyncWaitFor(asioCtxT& ctx, validateT validate)
+        : asioCtx_{ctx}, validate_{std::move(validate)} {}
+
 private:
 
     // Some kind of containter that stores the stuff that is waiting for a completion.
@@ -131,7 +134,8 @@ private:
 
 template <typename T, typename asioCtxT, typename validateT>
 auto make_async_wait_for(asioCtxT& asioCtx, validateT validate) {
-    return AsyncWaitFor<T, asioCtxT, validateT>(asioCtx);
+    return AsyncWaitFor<T, asioCtxT, validateT>(asioCtx, validate);
 }
+
 
 } // ns
