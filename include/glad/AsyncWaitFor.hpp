@@ -3,7 +3,10 @@
 #include <list>
 #include <chrono>
 #include <boost/asio.hpp>
-
+#include <mutex>
+#include <memory>
+#include <variant>
+#include <cassert>
 
 #include "glad/config.h"
 
@@ -22,12 +25,12 @@ class AsyncWaitFor {
 public:
 
     struct Item {
-        Item(AsyncWaitFor& parent, T what, boost::posix_time::milliseconds waitDuration)
+        Item(AsyncWaitFor& parent, T what, std::chrono::steady_clock::duration waitDuration)
             : timer_{parent.asioCtx_, waitDuration}, what_{std::move(what)}
         {
         }
 
-        boost::asio::deadline_timer timer_;
+        boost::asio::steady_timer timer_;
         T what_;
         bool ok_ = false;
         bool done_ = false;
@@ -46,11 +49,8 @@ public:
         return boost::asio::async_compose<CompletionToken,
                                           void(boost::system::error_code e)>
             ([this, what=std::move(what), duration](auto& self) mutable {
-
-            const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
-
                 std::lock_guard lock{mutex_};
-                auto item = std::make_shared<Item>(*this, std::move(what), boost::posix_time::milliseconds{ms});
+                auto item = std::make_shared<Item>(*this, std::move(what), duration);
                 storage_.emplace_back(item);
 
                 item->timer_.async_wait([this, item, self=std::move(self)]
@@ -96,8 +96,11 @@ public:
 
             if (validate_(condition, item.what_)) {
                 item.ok_ = true;
-                boost::system::error_code ec;
-                item.timer_.cancel(ec);
+                try {
+                    item.timer_.cancel();
+                } catch(...) {
+                    // Ignore
+                }
                 storage_.erase(curr);
             }
         }

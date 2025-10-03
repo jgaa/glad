@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 if (NOT DEFINED GLAD_VERSION)
-    set(GLAD_VERSION 0.2.0)
+    set(GLAD_VERSION 0.2.1)
 endif()
 set(GLAD_VERSION_STR \"${GLAD_VERSION}\")
 
@@ -39,7 +39,6 @@ if(NOT DEFINED USE_BOOST_VERSION)
 endif()
 
 find_package(Boost ${USE_BOOST_VERSION} REQUIRED COMPONENTS
-    system
     program_options
     date_time
     coroutine

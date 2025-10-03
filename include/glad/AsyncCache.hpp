@@ -12,6 +12,7 @@
 #include <variant>
 #include <iostream>
 #include <sstream>
+#include <functional>
 
 #include <boost/leaf.hpp>
 #include <boost/asio.hpp>
@@ -163,7 +164,7 @@ class AsyncCacheT {
     public:
         struct Shard {
             Shard(asioCtxT& e)
-                : strand_{e} {};
+                : strand_{e.get_executor()} {};
 
             Shard() = delete;
 
@@ -176,7 +177,7 @@ class AsyncCacheT {
             }
 
         private:
-            boost::asio::io_context::strand strand_;
+            boost::asio::strand<typename asioCtxT::executor_type> strand_;
             cache_t cache_;
         };
 
@@ -294,7 +295,7 @@ public:
      */
     void erase(keyT key, boost::system::error_code ec = boost::system::errc::make_error_code(boost::system::errc::operation_canceled)) {
         auto& shrd = shard(key);
-        shrd.strand().dispatch([this, &shrd, key=std::move(key), ec] {
+        boost::asio::dispatch(shrd.strand(), [this, &shrd, key=std::move(key), ec] {
             auto& cache = shrd.cache();
             if (auto it = cache.find(key); it != cache.end()) {
                 auto& v = it->second;
@@ -327,7 +328,7 @@ public:
      */
     void invalidate(keyT key) {
         auto& shrd = shard(key);
-        shrd.strand().dispatch([this, &shrd, key=std::move(key)] {
+        boost::asio::dispatch(shrd.strand(), [this, &shrd, key=std::move(key)] {
             auto& cache = shrd.cache();
             if (auto it = cache.find(key); it != cache.end()) {
                 auto& v = it->second;
@@ -392,10 +393,10 @@ private:
 
     void fetch(const keyT& key) {
         auto& shrd = shard(key);
-        shrd.strand().post([key=key, &shrd, this] {
+        boost::asio::post(shrd.strand(), [key=key, &shrd, this] {
             try {
             fetch_(key, [key=key, &shrd, this](boost::system::error_code e, valueT value) {
-                shrd.strand().dispatch([this, &shrd, e, key=std::move(key), value=std::move(value)] {
+                boost::asio::dispatch(shrd.strand(), [this, &shrd, e, key=std::move(key), value=std::move(value)] {
                     auto& cache = shrd.cache();
                     // Only do something if the key exists. It may have been erased since we started the call.
                     if (auto it = cache.find(key); it != cache.end()) {

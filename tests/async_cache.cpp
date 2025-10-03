@@ -306,9 +306,9 @@ TEST(Cache, TestWithSimultaneousRequests) {
 
         // Wait until all the requests have been sent before we return.
         boost::asio::co_spawn(ctx, [&created_requests, &ctx, cb=std::move(cb)]() mutable -> boost::asio::awaitable<void> {
-                boost::asio::deadline_timer timer{ctx};
+                boost::asio::steady_timer timer{ctx};
                 while(created_requests < sim_requests) {
-                    timer.expires_from_now(boost::posix_time::millisec{2});
+                    timer.expires_after(std::chrono::milliseconds{2});
                     co_await timer.async_wait(boost::asio::use_awaitable);
                 }
 
